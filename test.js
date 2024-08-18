@@ -55,3 +55,11 @@ test('returns a promise', async t => {
 	t.true(result instanceof Promise);
 	await result;
 });
+
+test('promise.subprocess is set', async t => {
+	const promise = nanoSpawn('node');
+	promise.subprocess.kill();
+
+	const {exitCode} = await promise;
+	t.is(exitCode, null);
+});
