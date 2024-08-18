@@ -27,10 +27,19 @@ const getResult = async subprocess => {
 	bufferOutput(subprocess, result, 'stderr');
 
 	try {
-		const [exitCode] = await once(subprocess, 'close');
-		return {...getOutput(result), exitCode};
+		await once(subprocess, 'close');
+		return getOutput(subprocess, result);
 	} catch (error) {
-		throw Object.assign(error, getOutput(result));
+		// The `error` event on subprocess is emitted either:
+		//  - Before `spawn`, e.g. for a non-existing executable file.
+		//    Then, `subprocess.pid` is `undefined` and `close` is never emitted.
+		//  - After `spawn`, e.g. for the `signal` option.
+		//    Then, `subprocess.pid` is set and `close` is always emitted.
+		if (subprocess.pid !== undefined) {
+			await Promise.allSettled([once(subprocess, 'close')]);
+		}
+
+		throw Object.assign(error, getOutput(subprocess, result));
 	}
 };
 
@@ -41,7 +50,10 @@ const bufferOutput = (subprocess, result, streamName) => {
 	});
 };
 
-const getOutput = ({stdout, stderr}) => ({
+const getOutput = ({exitCode, signalCode}, {stdout, stderr}) => ({
+	// `exitCode` can be a negative number (`errno`) when the `error` event is emitted on the subprocess
+	...(exitCode === null || exitCode < 0 ? {} : {exitCode}),
+	...(signalCode === null ? {} : {signalName: signalCode}),
 	stdout: stripNewline(stdout),
 	stderr: stripNewline(stderr),
 });
