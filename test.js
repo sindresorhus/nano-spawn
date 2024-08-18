@@ -19,6 +19,54 @@ test('can pass options.argv0', async t => {
 	t.is(stdout, testString);
 });
 
+test('can pass options.stdin', async t => {
+	const promise = nanoSpawn('node', ['--version'], {stdin: 'ignore'});
+	t.is(promise.subprocess.stdin, null);
+	await promise;
+});
+
+test('can pass options.stdout', async t => {
+	const promise = nanoSpawn('node', ['--version'], {stdout: 'ignore'});
+	t.is(promise.subprocess.stdout, null);
+	await promise;
+});
+
+test('can pass options.stderr', async t => {
+	const promise = nanoSpawn('node', ['--version'], {stderr: 'ignore'});
+	t.is(promise.subprocess.stderr, null);
+	await promise;
+});
+
+test('can pass options.stdio array', async t => {
+	const promise = nanoSpawn('node', ['--version'], {stdio: ['ignore', 'pipe', 'pipe', 'pipe']});
+	t.is(promise.subprocess.stdin, null);
+	t.not(promise.subprocess.stdout, null);
+	t.not(promise.subprocess.stderr, null);
+	t.not(promise.subprocess.stdio[3], null);
+	await promise;
+});
+
+test('can pass options.stdio string', async t => {
+	const promise = nanoSpawn('node', ['--version'], {stdio: 'ignore'});
+	t.is(promise.subprocess.stdin, null);
+	t.is(promise.subprocess.stdout, null);
+	t.is(promise.subprocess.stderr, null);
+	t.is(promise.subprocess.stdio.length, 3);
+	await promise;
+});
+
+test('options.stdio array has priority over options.stdout', async t => {
+	const promise = nanoSpawn('node', ['--version'], {stdio: ['pipe', 'pipe', 'pipe'], stdout: 'ignore'});
+	t.not(promise.subprocess.stdout, null);
+	await promise;
+});
+
+test('options.stdio string has priority over options.stdout', async t => {
+	const promise = nanoSpawn('node', ['--version'], {stdio: 'pipe', stdout: 'ignore'});
+	t.not(promise.subprocess.stdout, null);
+	await promise;
+});
+
 test('can pass options object without any arguments', async t => {
 	const {exitCode, signalName} = await nanoSpawn('node', {timeout: 1});
 	t.is(exitCode, undefined);
@@ -83,6 +131,12 @@ test('result.stderr strips Windows newline', async t => {
 	t.is(stderr, '.');
 });
 
+test('result.stdout is undefined if options.stdout "ignore"', async t => {
+	const {stdout, stderr} = await nanoSpawn('node', ['-e', 'console.log("."); console.error(".");'], {stdout: 'ignore'});
+	t.is(stdout, undefined);
+	t.is(stderr, '.');
+});
+
 const multibyteString = '.\u{1F984}.';
 const multibyteUint8Array = new TextEncoder().encode(multibyteString);
 const multibyteFirstHalf = multibyteUint8Array.slice(0, 3);
@@ -115,6 +169,17 @@ test('promise.stderr can be iterated', async t => {
 
 	const {stderr} = await promise;
 	t.is(stderr, 'a\nb');
+});
+
+test('promise.stdout has no iterations if options.stdout "ignore"', async t => {
+	const promise = nanoSpawn('node', ['-e', 'console.log("."); console.error(".");'], {stdout: 'ignore'});
+	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(promise.stdout), arrayFromAsync(promise.stderr)]);
+	t.deepEqual(stdoutLines, []);
+	t.deepEqual(stderrLines, ['.']);
+
+	const {stdout, stderr} = await promise;
+	t.is(stdout, undefined);
+	t.is(stderr, '.');
 });
 
 test('promise can be iterated with both stdout and stderr', async t => {
