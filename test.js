@@ -308,10 +308,10 @@ if (isWindows) {
 
 	test('Uses PATHEXT with options.shell', async t => {
 		t.is(path.extname(process.execPath), '.exe');
-		const {exitCode, stderr} = await nanoSpawn(process.execPath.slice(0, -4), ['-e', 'console.log(".")'], {
+		const {exitCode, stderr} = await t.throwsAsync(nanoSpawn(process.execPath.slice(0, -4), ['-e', 'console.log(".")'], {
 			env: {...process.env, PATHEXT: '.COM'},
 			shell: true,
-		});
+		}));
 		t.is(exitCode, 1);
 		t.true(stderr.includes('not recognized as an internal or external command'));
 	});
@@ -329,7 +329,7 @@ test('Handles non-existing command without options.shell', async t => {
 });
 
 test('Handles non-existing command with options.shell', async t => {
-	const {exitCode, stderr} = await nanoSpawn('non-existent-command', {shell: true});
+	const {exitCode, stderr} = await t.throwsAsync(nanoSpawn('non-existent-command', {shell: true}));
 	if (isWindows) {
 		t.is(exitCode, 1);
 		t.true(stderr.includes('not recognized as an internal or external command'));
