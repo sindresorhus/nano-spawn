@@ -20,7 +20,7 @@ test('can pass options.argv0', async t => {
 });
 
 test('can pass options object without any arguments', async t => {
-	const {exitCode, signalName} = await nanoSpawn('node', {timeout: 1});
+	const {exitCode, signalName} = await t.throwsAsync(nanoSpawn('node', {timeout: 1}));
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
 });
@@ -31,34 +31,41 @@ test('result.exitCode|signalName on success', async t => {
 	t.is(signalName, undefined);
 });
 
-test('result.exitCode|signalName on non-0 exit code', async t => {
-	const {exitCode, signalName} = await nanoSpawn('node', ['-e', 'process.exit(2)']);
+test('error.exitCode|signalName on non-0 exit code', async t => {
+	const {exitCode, signalName, message} = await t.throwsAsync(nanoSpawn('node', ['-e', 'process.exit(2)']));
 	t.is(exitCode, 2);
 	t.is(signalName, undefined);
+	t.is(message, 'Command failed with exit code 2.');
 });
 
-test('result.exitCode|signalName on signal termination', async t => {
-	const {exitCode, signalName} = await nanoSpawn('node', {timeout: 1});
+test('error.exitCode|signalName on signal termination', async t => {
+	const {exitCode, signalName, message} = await t.throwsAsync(nanoSpawn('node', {timeout: 1}));
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
+	t.is(message, 'Command was terminated with SIGTERM.');
 });
 
-test('result.exitCode|signalName on invalid child_process options', t => {
-	const {exitCode, signalName} = t.throws(() => nanoSpawn('node', ['--version'], {detached: 'true'}));
+test('error.exitCode|signalName on invalid child_process options', t => {
+	const {exitCode, signalName, message} = t.throws(() => nanoSpawn('node', ['--version'], {detached: 'true'}));
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
+	t.true(message.includes('options.detached'));
 });
 
-test('result.exitCode|signalName on "error" event before spawn', async t => {
-	const {exitCode, signalName} = await t.throwsAsync(nanoSpawn('non-existent-command'));
+test('error.exitCode|signalName on "error" event before spawn', async t => {
+	const {exitCode, signalName, message} = await t.throwsAsync(nanoSpawn('non-existent-command'));
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
+	t.true(message.includes('non-existent-command'));
 });
 
-test('result.exitCode|signalName on "error" event after spawn', async t => {
-	const {exitCode, signalName} = await t.throwsAsync(nanoSpawn('node', {signal: AbortSignal.abort()}));
+test('error.exitCode|signalName on "error" event after spawn', async t => {
+	const error = new Error(testString);
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('node', {signal: AbortSignal.abort(error)}));
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
+	t.is(message, 'The operation was aborted');
+	t.is(cause, error);
 });
 
 test('result.stdout is set', async t => {
@@ -69,6 +76,20 @@ test('result.stdout is set', async t => {
 
 test('result.stderr is set', async t => {
 	const {stdout, stderr} = await nanoSpawn('node', ['-e', 'console.error(".")']);
+	t.is(stdout, '');
+	t.is(stderr, '.');
+});
+
+test('error.stdout is set', async t => {
+	const {exitCode, stdout, stderr} = await t.throwsAsync(nanoSpawn('node', ['-e', 'console.log("."); process.exit(2);']));
+	t.is(exitCode, 2);
+	t.is(stdout, '.');
+	t.is(stderr, '');
+});
+
+test('error.stderr is set', async t => {
+	const {exitCode, stdout, stderr} = await t.throwsAsync(nanoSpawn('node', ['-e', 'console.error("."); process.exit(2);']));
+	t.is(exitCode, 2);
 	t.is(stdout, '');
 	t.is(stderr, '.');
 });
@@ -170,8 +191,8 @@ test('promise.subprocess is set', async t => {
 	const promise = nanoSpawn('node');
 	promise.subprocess.kill();
 
-	const {exitCode} = await promise;
-	t.is(exitCode, undefined);
+	const {signalName} = await t.throwsAsync(promise);
+	t.is(signalName, 'SIGTERM');
 });
 
 test('Handles stdout error', async t => {
