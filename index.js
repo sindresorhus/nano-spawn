@@ -2,12 +2,12 @@ import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {lineIterator, combineAsyncIterators} from './utilities.js';
 
-export default function nanoSpawn(command, rawArguments = [], rawOptions = {}) {
-	const [commandArguments, {signal, timeout, nativeOptions}] = Array.isArray(rawArguments)
-		? [rawArguments, rawOptions]
-		: [[], rawArguments];
+export default function nanoSpawn(command, commandArguments = [], options = {}) {
+	[commandArguments, options] = Array.isArray(commandArguments)
+		? [commandArguments, options]
+		: [[], commandArguments];
 
-	const subprocess = spawn(command, commandArguments, {...nativeOptions, signal, timeout});
+	const subprocess = spawn(command, commandArguments, options);
 
 	const promise = getResult(subprocess);
 
