@@ -1,12 +1,15 @@
 import path from 'node:path';
 import process from 'node:process';
 import {setTimeout} from 'node:timers/promises';
+import {fileURLToPath} from 'node:url';
 import test from 'ava';
+import pathKey from 'path-key';
 import {red} from 'yoctocolors';
 import nanoSpawn from './index.js';
 
 const isWindows = process.platform === 'win32';
 const FIXTURES_URL = new URL('fixtures', import.meta.url);
+const fixturesPath = fileURLToPath(FIXTURES_URL);
 
 // TODO: replace with Array.fromAsync() after dropping support for Node <22.0.0
 const arrayFromAsync = async asyncIterable => {
@@ -23,6 +26,11 @@ const testString = 'test';
 test('can pass options.argv0', async t => {
 	const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString});
 	t.is(stdout, testString);
+});
+
+test('can pass options.argv0, shell', async t => {
+	const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, shell: true});
+	t.is(stdout, 'node');
 });
 
 test('can pass options.stdin', async t => {
@@ -130,11 +138,13 @@ test('error on invalid child_process options', t => {
 });
 
 test('error on "error" event before spawn', async t => {
-	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('non-existent-command'));
-	t.is(exitCode, undefined);
-	t.is(signalName, undefined);
-	t.is(message, 'Command failed: non-existent-command');
-	t.true(cause.message.includes('non-existent-command'));
+	const {stderr, cause} = await t.throwsAsync(nanoSpawn('non-existent-command'));
+
+	if (isWindows) {
+		t.true(stderr.includes('not recognized as an internal or external command'));
+	} else {
+		t.is(cause.code, 'ENOENT');
+	}
 });
 
 test('error on "error" event after spawn', async t => {
@@ -349,40 +359,143 @@ test('error.durationMs is set', async t => {
 });
 
 if (isWindows) {
-	test('Can run .exe file', async t => {
+	const testExe = async (t, shell) => {
 		t.is(path.extname(process.execPath), '.exe');
-		const {stdout} = await nanoSpawn(process.execPath, ['-e', 'console.log(".")']);
-		t.is(stdout, '.');
+		const {stdout} = await nanoSpawn(process.execPath, ['--version'], {shell});
+		t.is(stdout, process.version);
+	};
+
+	test('Can run .exe file', testExe, undefined);
+	test('Can run .exe file, no shell', testExe, false);
+	test('Can run .exe file, shell', testExe, true);
+
+	test('.exe does not use shell by default', async t => {
+		const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString});
+		t.is(stdout, testString);
 	});
 
-	test('Cannot run .cmd file without options.shell', t => {
-		const {code, syscall} = t.throws(() => nanoSpawn('test.cmd', {cwd: FIXTURES_URL, shell: false}));
-		t.is(code, 'EINVAL');
-		t.is(syscall, 'spawn');
+	test('.exe can use shell', async t => {
+		const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, shell: true});
+		t.is(stdout, 'node');
 	});
 
-	test('Can run .cmd file with options.shell', async t => {
-		const {stdout} = await nanoSpawn('test.cmd', {cwd: FIXTURES_URL, shell: true});
-		t.true(stdout.endsWith(testString));
+	test('.exe detection with explicit file extension', async t => {
+		const {stdout} = await nanoSpawn(process.execPath, ['-p', 'process.argv0'], {argv0: testString});
+		t.is(stdout, testString);
 	});
 
-	test('Ignores PATHEXT without options.shell', async t => {
-		t.is(path.extname(process.execPath), '.exe');
-		const {stdout} = await nanoSpawn(process.execPath.slice(0, -4), ['-e', 'console.log(".")'], {
+	test('.exe detection with explicit file extension, case insensitive', async t => {
+		const {stdout} = await nanoSpawn(process.execPath.toUpperCase(), ['-p', 'process.argv0'], {argv0: testString});
+		t.is(stdout, testString);
+	});
+
+	test('.exe detection with file paths without file extension', async t => {
+		const {stdout} = await nanoSpawn(process.execPath.replace('.exe', ''), ['-p', 'process.argv0'], {argv0: testString});
+		t.is(stdout, testString);
+	});
+
+	test('.exe detection with Unix slashes', async t => {
+		t.true(process.execPath.endsWith('\\node.exe'));
+		const {stdout} = await nanoSpawn(process.execPath.replace('\\node.exe', '/node.exe'), ['-p', 'process.argv0'], {argv0: testString});
+		t.is(stdout, testString);
+	});
+
+	test('.exe detection with custom Path', async t => {
+		const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, env: {[pathKey()]: path.dirname(process.execPath)}});
+		t.is(stdout, testString);
+	});
+
+	test('.exe detection with custom Path and leading ;', async t => {
+		const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, env: {[pathKey()]: `;${path.dirname(process.execPath)}`}});
+		t.is(stdout, testString);
+	});
+
+	test('.exe detection with custom Path and double quoting', async t => {
+		const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, env: {[pathKey()]: `"${path.dirname(process.execPath)}"`}});
+		t.is(stdout, testString);
+	});
+
+	const testCom = async (t, shell) => {
+		const {stdout} = await nanoSpawn('tree.com', [fileURLToPath(FIXTURES_URL), '/f'], {shell});
+		t.true(stdout.includes('spawnecho.cmd'));
+	};
+
+	test('Can run .com file', testCom, undefined);
+	test('Can run .com file, no shell', testCom, false);
+	test('Can run .com file, shell', testCom, true);
+
+	const testCmd = async (t, shell) => {
+		const {stdout} = await nanoSpawn('spawnecho.cmd', [testString], {cwd: FIXTURES_URL, shell});
+		t.is(stdout, testString);
+	};
+
+	test('Can run .cmd file', testCmd, undefined);
+	test('Can run .cmd file, no shell', testCmd, false);
+	test('Can run .cmd file, shell', testCmd, true);
+
+	test('Uses PATHEXT by default', async t => {
+		const {stdout} = await nanoSpawn('spawnecho', [testString], {cwd: FIXTURES_URL});
+		t.is(stdout, testString);
+	});
+
+	test('Uses cwd as string', async t => {
+		const {stdout} = await nanoSpawn('spawnecho', [testString], {cwd: fixturesPath});
+		t.is(stdout, testString);
+	});
+
+	const testPathExtension = async (t, shell) => {
+		const {exitCode, stderr} = await t.throwsAsync(nanoSpawn('spawnecho', [testString], {
 			env: {PATHEXT: '.COM'},
-			shell: false,
-		});
-		t.is(stdout, '.');
-	});
-
-	test('Uses PATHEXT with options.shell', async t => {
-		t.is(path.extname(process.execPath), '.exe');
-		const {exitCode, stderr} = await t.throwsAsync(nanoSpawn(process.execPath.slice(0, -4), ['-e', 'console.log(".")'], {
-			env: {PATHEXT: '.COM'},
-			shell: true,
+			cwd: FIXTURES_URL,
+			shell,
 		}));
 		t.is(exitCode, 1);
 		t.true(stderr.includes('not recognized as an internal or external command'));
+	};
+
+	test('Can set PATHEXT', testPathExtension, undefined);
+	test('Can set PATHEXT, no shell', testPathExtension, false);
+	test('Can set PATHEXT, shell', testPathExtension, true);
+
+	const testEscape = async (t, input) => {
+		const {stdout} = await nanoSpawn('spawnecho', [input], {cwd: FIXTURES_URL});
+		t.is(stdout, input);
+	};
+
+	test('Escapes when setting shell option, "', testEscape, '"');
+	test('Escapes when setting shell option, \\', testEscape, '\\');
+	test('Escapes when setting shell option, \\.', testEscape, '\\.');
+	test('Escapes when setting shell option, \\"', testEscape, '\\"');
+	test('Escapes when setting shell option, \\\\"', testEscape, '\\\\"');
+	test('Escapes when setting shell option, a b', testEscape, 'a b');
+	test('Escapes when setting shell option, \'.\'', testEscape, '\'.\'');
+	test('Escapes when setting shell option, "."', testEscape, '"."');
+	test('Escapes when setting shell option, (', testEscape, '(');
+	test('Escapes when setting shell option, )', testEscape, ')');
+	test('Escapes when setting shell option, ]', testEscape, ']');
+	test('Escapes when setting shell option, [', testEscape, '[');
+	test('Escapes when setting shell option, %', testEscape, '%');
+	test('Escapes when setting shell option, %1', testEscape, '%1');
+	test('Escapes when setting shell option, !', testEscape, '!');
+	test('Escapes when setting shell option, ^', testEscape, '^');
+	test('Escapes when setting shell option, `', testEscape, '`');
+	test('Escapes when setting shell option, <', testEscape, '<');
+	test('Escapes when setting shell option, >', testEscape, '>');
+	test('Escapes when setting shell option, &', testEscape, '&');
+	test('Escapes when setting shell option, |', testEscape, '|');
+	test('Escapes when setting shell option, ;', testEscape, ';');
+	test('Escapes when setting shell option, ,', testEscape, ',');
+	test('Escapes when setting shell option, space', testEscape, ' ');
+	test('Escapes when setting shell option, *', testEscape, '*');
+	test('Escapes when setting shell option, ?', testEscape, '?');
+
+	test('Cannot run shebangs', async t => {
+		const {message, exitCode, signalName, stderr, cause} = await t.throwsAsync(nanoSpawn('./shebang.js', {cwd: FIXTURES_URL}));
+		t.is(signalName, undefined);
+		t.is(exitCode, 1);
+		t.is(message, 'Command failed with exit code 1: ./shebang.js');
+		t.true(stderr.includes('not recognized as an internal or external command'));
+		t.is(cause, undefined);
 	});
 } else {
 	test('Can run shebangs', async t => {
@@ -391,27 +504,100 @@ if (isWindows) {
 	});
 }
 
-test('Handles non-existing command without options.shell', async t => {
-	const {cause} = await t.throwsAsync(nanoSpawn('non-existent-command', {shell: false}));
-	t.is(cause.code, 'ENOENT');
-	t.is(cause.syscall, 'spawn non-existent-command');
+test('Can run Bash', async t => {
+	const {stdout} = await nanoSpawn(`echo ${testString}`, {cwd: FIXTURES_URL, shell: 'bash'});
+	t.is(stdout, testString);
 });
 
-test('Handles non-existing command with options.shell', async t => {
-	const {exitCode, stderr} = await t.throwsAsync(nanoSpawn('non-existent-command', {shell: true}));
+test('Does not double escape shell strings', async t => {
+	const {stdout} = await nanoSpawn('node -p "0"', {shell: true});
+	t.is(stdout, '0');
+});
+
+test('Handles non-existing command', async t => {
+	const {message, exitCode, signalName, stderr, cause} = await t.throwsAsync(nanoSpawn('non-existent-command'));
+
 	if (isWindows) {
+		t.is(signalName, undefined);
 		t.is(exitCode, 1);
+		t.is(message, 'Command failed with exit code 1: non-existent-command');
 		t.true(stderr.includes('not recognized as an internal or external command'));
+		t.is(cause, undefined);
 	} else {
+		t.is(signalName, undefined);
+		t.is(exitCode, undefined);
+		t.is(message, 'Command failed: non-existent-command');
+		t.is(stderr, '');
+		t.true(cause.message.includes('non-existent-command'));
+		t.is(cause.code, 'ENOENT');
+		t.is(cause.syscall, 'spawn non-existent-command');
+	}
+});
+
+test('Handles non-existing command, shell', async t => {
+	const {message, exitCode, signalName, stderr, cause} = await t.throwsAsync(nanoSpawn('non-existent-command', {shell: true}));
+
+	if (isWindows) {
+		t.is(signalName, undefined);
+		t.is(exitCode, 1);
+		t.is(message, 'Command failed with exit code 1: non-existent-command');
+		t.true(stderr.includes('not recognized as an internal or external command'));
+		t.is(cause, undefined);
+	} else {
+		t.is(signalName, undefined);
 		t.is(exitCode, 127);
+		t.is(message, 'Command failed with exit code 127: non-existent-command');
 		t.true(stderr.includes('not found'));
+		t.is(cause, undefined);
 	}
 });
 
 test('Can run global npm binaries', async t => {
-	const {stdout} = await nanoSpawn('npm', ['--version'], {shell: isWindows});
-	t.regex(stdout, /^\d+\.\d+\.\d+/);
+	const {stdout} = await nanoSpawn('npm', ['--version']);
+	t.regex(stdout, /^\d+\.\d+\.\d+$/);
 });
+
+test('Can run local npm binaries', async t => {
+	const localDirectory = fileURLToPath(new URL('node_modules/.bin', import.meta.url));
+	const pathValue = `${process.env[pathKey()]}${path.delimiter}${localDirectory}`;
+	const {stdout} = await nanoSpawn('ava', ['--version'], {[pathKey()]: pathValue});
+	t.regex(stdout, /^\d+\.\d+\.\d+$/);
+});
+
+const testLocalBinary = async (t, input) => {
+	const localDirectory = fileURLToPath(new URL('node_modules/.bin', import.meta.url));
+	const pathValue = `${process.env[pathKey()]}${path.delimiter}${localDirectory}`;
+	const testFile = fileURLToPath(new URL('fixtures/test.js', import.meta.url));
+	const {stderr} = await nanoSpawn('ava', [testFile, '--', input], {[pathKey()]: pathValue});
+	t.is(stderr, input);
+};
+
+test('Can pass arguments to local npm binaries, "', testLocalBinary, '"');
+test('Can pass arguments to local npm binaries, \\', testLocalBinary, '\\');
+test('Can pass arguments to local npm binaries, \\.', testLocalBinary, '\\.');
+test('Can pass arguments to local npm binaries, \\"', testLocalBinary, '\\"');
+test('Can pass arguments to local npm binaries, \\\\"', testLocalBinary, '\\\\"');
+test('Can pass arguments to local npm binaries, a b', testLocalBinary, 'a b');
+test('Can pass arguments to local npm binaries, \'.\'', testLocalBinary, '\'.\'');
+test('Can pass arguments to local npm binaries, "."', testLocalBinary, '"."');
+test('Can pass arguments to local npm binaries, (', testLocalBinary, '(');
+test('Can pass arguments to local npm binaries, )', testLocalBinary, ')');
+test('Can pass arguments to local npm binaries, ]', testLocalBinary, ']');
+test('Can pass arguments to local npm binaries, [', testLocalBinary, '[');
+test('Can pass arguments to local npm binaries, %', testLocalBinary, '%');
+test('Can pass arguments to local npm binaries, %1', testLocalBinary, '%1');
+test('Can pass arguments to local npm binaries, !', testLocalBinary, '!');
+test('Can pass arguments to local npm binaries, ^', testLocalBinary, '^');
+test('Can pass arguments to local npm binaries, `', testLocalBinary, '`');
+test('Can pass arguments to local npm binaries, <', testLocalBinary, '<');
+test('Can pass arguments to local npm binaries, >', testLocalBinary, '>');
+test('Can pass arguments to local npm binaries, &', testLocalBinary, '&');
+test('Can pass arguments to local npm binaries, |', testLocalBinary, '|');
+test('Can pass arguments to local npm binaries, ;', testLocalBinary, ';');
+test('Can pass arguments to local npm binaries, ,', testLocalBinary, ',');
+test('Can pass arguments to local npm binaries, space', testLocalBinary, ' ');
+test('Can pass arguments to local npm binaries, *', testLocalBinary, '*');
+test('Can pass arguments to local npm binaries, ?', testLocalBinary, '?');
 
 test('Can run OS binaries', async t => {
 	const {stdout} = await nanoSpawn('git', ['--version']);

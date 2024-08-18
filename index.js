@@ -3,7 +3,8 @@ import {once} from 'node:events';
 import {stripVTControlCharacters} from 'node:util';
 import process from 'node:process';
 import {finished} from 'node:stream/promises';
-import {lineIterator, combineAsyncIterators} from './utilities.js';
+import {lineIterator, combineAsyncIterators} from './iterable.js';
+import {getForcedShell, escapeArguments} from './windows.js';
 
 export default function nanoSpawn(file, commandArguments = [], options = {}) {
 	[commandArguments, options] = Array.isArray(commandArguments)
@@ -12,9 +13,11 @@ export default function nanoSpawn(file, commandArguments = [], options = {}) {
 	const start = process.hrtime.bigint();
 	const command = getCommand(file, commandArguments);
 	const spawnOptions = getOptions(options);
+	const forcedShell = getForcedShell(file, spawnOptions);
+	spawnOptions.shell ||= forcedShell;
 	const input = getInput(spawnOptions);
 
-	const subprocess = spawn(file, commandArguments, spawnOptions);
+	const subprocess = spawn(...escapeArguments(file, commandArguments, forcedShell), spawnOptions);
 
 	useInput(subprocess, input);
 	const promise = getResult(subprocess, start, command);
