@@ -326,6 +326,18 @@ test('result.command strips ANSI sequences', async t => {
 	t.is(stdout, red('.'));
 });
 
+test('result.durationMs is set', async t => {
+	const {durationMs} = await nanoSpawn('node', ['--version']);
+	t.true(Number.isFinite(durationMs));
+	t.true(durationMs > 0);
+});
+
+test('error.durationMs is set', async t => {
+	const {durationMs} = await t.throwsAsync(nanoSpawn('node', ['--unknown']));
+	t.true(Number.isFinite(durationMs));
+	t.true(durationMs > 0);
+});
+
 if (isWindows) {
 	test('Can run .exe file', async t => {
 		t.is(path.extname(process.execPath), '.exe');
