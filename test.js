@@ -2,6 +2,7 @@ import path from 'node:path';
 import process from 'node:process';
 import {setTimeout} from 'node:timers/promises';
 import test from 'ava';
+import {red} from 'yoctocolors';
 import nanoSpawn from './index.js';
 
 const isWindows = process.platform === 'win32';
@@ -84,41 +85,47 @@ test('result.exitCode|signalName on success', async t => {
 	t.is(signalName, undefined);
 });
 
-test('error.exitCode|signalName on non-0 exit code', async t => {
-	const {exitCode, signalName, message} = await t.throwsAsync(nanoSpawn('node', ['-e', 'process.exit(2)']));
+test('error on non-0 exit code', async t => {
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('node', ['-e', 'process.exit(2)']));
 	t.is(exitCode, 2);
 	t.is(signalName, undefined);
-	t.is(message, 'Command failed with exit code 2.');
+	t.is(message, 'Command failed with exit code 2: node -e \'process.exit(2)\'');
+	t.is(cause, undefined);
 });
 
-test('error.exitCode|signalName on signal termination', async t => {
-	const {exitCode, signalName, message} = await t.throwsAsync(nanoSpawn('node', {timeout: 1}));
+test('error on signal termination', async t => {
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('node', {timeout: 1}));
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
-	t.is(message, 'Command was terminated with SIGTERM.');
+	t.is(message, 'Command was terminated with SIGTERM: node');
+	t.is(cause, undefined);
 });
 
-test('error.exitCode|signalName on invalid child_process options', t => {
-	const {exitCode, signalName, message} = t.throws(() => nanoSpawn('node', ['--version'], {detached: 'true'}));
+test('error on invalid child_process options', t => {
+	const {exitCode, signalName, message, cause} = t.throws(() => nanoSpawn('node', ['--version'], {detached: 'true'}));
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
 	t.true(message.includes('options.detached'));
+	t.false(message.includes('Command'));
+	t.is(cause, undefined);
 });
 
-test('error.exitCode|signalName on "error" event before spawn', async t => {
-	const {exitCode, signalName, message} = await t.throwsAsync(nanoSpawn('non-existent-command'));
+test('error on "error" event before spawn', async t => {
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('non-existent-command'));
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
-	t.true(message.includes('non-existent-command'));
+	t.is(message, 'Command failed: non-existent-command');
+	t.true(cause.message.includes('non-existent-command'));
 });
 
-test('error.exitCode|signalName on "error" event after spawn', async t => {
+test('error on "error" event after spawn', async t => {
 	const error = new Error(testString);
 	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('node', {signal: AbortSignal.abort(error)}));
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
-	t.is(message, 'The operation was aborted');
-	t.is(cause, error);
+	t.is(message, 'Command failed: node');
+	t.is(cause.message, 'The operation was aborted');
+	t.is(cause.cause, error);
 });
 
 test('result.stdout is set', async t => {
@@ -269,14 +276,45 @@ test('Handles stdout error', async t => {
 	const promise = nanoSpawn('node', ['--version']);
 	const error = new Error(testString);
 	promise.subprocess.stdout.emit('error', error);
-	t.is(await t.throwsAsync(promise), error);
+	const {cause} = await t.throwsAsync(promise);
+	t.is(cause, error);
 });
 
 test('Handles stderr error', async t => {
 	const promise = nanoSpawn('node', ['--version']);
 	const error = new Error(testString);
 	promise.subprocess.stderr.emit('error', error);
-	t.is(await t.throwsAsync(promise), error);
+	const {cause} = await t.throwsAsync(promise);
+	t.is(cause, error);
+});
+
+test('result.command is defined', async t => {
+	const {command} = await nanoSpawn('node', ['--version']);
+	t.is(command, 'node --version');
+});
+
+test('result.command quotes spaces', async t => {
+	const {command, stdout} = await nanoSpawn('node', ['-p', '". ."']);
+	t.is(command, 'node -p \'". ."\'');
+	t.is(stdout, '. .');
+});
+
+test('result.command quotes single quotes', async t => {
+	const {command, stdout} = await nanoSpawn('node', ['-p', '"\'"']);
+	t.is(command, 'node -p \'"\'\\\'\'"\'');
+	t.is(stdout, '\'');
+});
+
+test('result.command quotes unusual characters', async t => {
+	const {command, stdout} = await nanoSpawn('node', ['-p', '","']);
+	t.is(command, 'node -p \'","\'');
+	t.is(stdout, ',');
+});
+
+test('result.command strips ANSI sequences', async t => {
+	const {command, stdout} = await nanoSpawn('node', ['-p', `"${red('.')}"`]);
+	t.is(command, 'node -p \'"."\'');
+	t.is(stdout, red('.'));
 });
 
 if (isWindows) {
@@ -323,9 +361,9 @@ if (isWindows) {
 }
 
 test('Handles non-existing command without options.shell', async t => {
-	const {code, syscall} = await t.throwsAsync(nanoSpawn('non-existent-command', {shell: false}));
-	t.is(code, 'ENOENT');
-	t.is(syscall, 'spawn non-existent-command');
+	const {cause} = await t.throwsAsync(nanoSpawn('non-existent-command', {shell: false}));
+	t.is(cause.code, 'ENOENT');
+	t.is(cause.syscall, 'spawn non-existent-command');
 });
 
 test('Handles non-existing command with options.shell', async t => {

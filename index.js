@@ -1,16 +1,18 @@
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
+import {stripVTControlCharacters} from 'node:util';
 import {finished} from 'node:stream/promises';
 import {lineIterator, combineAsyncIterators} from './utilities.js';
 
-export default function nanoSpawn(command, commandArguments = [], options = {}) {
+export default function nanoSpawn(file, commandArguments = [], options = {}) {
 	[commandArguments, options] = Array.isArray(commandArguments)
 		? [commandArguments, options]
 		: [[], commandArguments];
+	const command = getCommand(file, commandArguments);
 
-	const subprocess = spawn(command, commandArguments, getOptions(options));
+	const subprocess = spawn(file, commandArguments, getOptions(options));
 
-	const promise = getResult(subprocess);
+	const promise = getResult(subprocess, command);
 
 	const stdoutLines = lineIterator(subprocess.stdout);
 	const stderrLines = lineIterator(subprocess.stderr);
@@ -33,7 +35,18 @@ const getOptions = ({
 	stdio,
 });
 
-const getResult = async subprocess => {
+const getCommand = (file, commandArguments) => [file, ...commandArguments]
+	.map(part => getCommandPart(part))
+	.join(' ');
+
+const getCommandPart = part => {
+	part = stripVTControlCharacters(part);
+	return /[^\w./-]/.test(part)
+		? `'${part.replaceAll('\'', '\'\\\'\'')}'`
+		: part;
+};
+
+const getResult = async (subprocess, command) => {
 	const result = {};
 	const onExit = waitForExit(subprocess);
 	const onStdoutDone = bufferOutput(subprocess.stdout, result, 'stdout');
@@ -41,12 +54,12 @@ const getResult = async subprocess => {
 
 	try {
 		await Promise.all([onExit, onStdoutDone, onStderrDone]);
-		const output = getOutput(subprocess, result);
-		checkFailure(output);
+		const output = getOutput(subprocess, result, command);
+		checkFailure(command, output);
 		return output;
 	} catch (error) {
 		await Promise.allSettled([onExit, onStdoutDone, onStderrDone]);
-		throw Object.assign(error, getOutput(subprocess, result));
+		throw Object.assign(getResultError(error, command), getOutput(subprocess, result, command));
 	}
 };
 
@@ -80,24 +93,29 @@ const bufferOutput = async (stream, result, streamName) => {
 	await finished(stream, {cleanup: true});
 };
 
-const getOutput = ({exitCode, signalCode}, {stdout, stderr}) => ({
+const getOutput = ({exitCode, signalCode}, {stdout, stderr}, command) => ({
 	// `exitCode` can be a negative number (`errno`) when the `error` event is emitted on the subprocess
 	...(exitCode === null || exitCode < 0 ? {} : {exitCode}),
 	...(signalCode === null ? {} : {signalName: signalCode}),
 	stdout: stripNewline(stdout),
 	stderr: stripNewline(stderr),
+	command,
 });
 
 const stripNewline = input => input?.at(-1) === '\n'
 	? input.slice(0, input.at(-2) === '\r' ? -2 : -1)
 	: input;
 
-const checkFailure = ({exitCode, signalName}) => {
+const checkFailure = (command, {exitCode, signalName}) => {
 	if (signalName !== undefined) {
-		throw new Error(`Command was terminated with ${signalName}.`);
+		throw new Error(`Command was terminated with ${signalName}: ${command}`);
 	}
 
 	if (exitCode !== 0) {
-		throw new Error(`Command failed with exit code ${exitCode}.`);
+		throw new Error(`Command failed with exit code ${exitCode}: ${command}`);
 	}
 };
+
+const getResultError = (error, command) => error?.message.startsWith('Command ')
+	? error
+	: new Error(`Command failed: ${command}`, {cause: error});
