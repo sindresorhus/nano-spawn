@@ -1,8 +1,12 @@
 import {spawn} from 'node:child_process';
 import {lineIterator, combineAsyncIterables} from './utilities.js';
 
-export default function nanoSpawn(command, arguments_ = [], {signal, timeout, nativeOptions} = {}) {
-	const subprocess = spawn(command, arguments_, {...nativeOptions, signal, timeout});
+export default function nanoSpawn(command, rawArguments = [], rawOptions = {}) {
+	const [commandArguments, {signal, timeout, nativeOptions}] = Array.isArray(rawArguments)
+		? [rawArguments, rawOptions]
+		: [[], rawArguments];
+
+	const subprocess = spawn(command, commandArguments, {...nativeOptions, signal, timeout});
 
 	// eslint-disable-next-line no-async-promise-executor
 	const promise = new Promise(async (resolve, reject) => {
