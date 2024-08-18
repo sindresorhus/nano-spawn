@@ -23,8 +23,8 @@ export default function nanoSpawn(command, rawArguments = [], rawOptions = {}) {
 
 const getResult = async subprocess => {
 	const result = {};
-	bufferOutput(subprocess, result, 'stdout');
-	bufferOutput(subprocess, result, 'stderr');
+	bufferOutput(subprocess.stdout, result, 'stdout');
+	bufferOutput(subprocess.stderr, result, 'stderr');
 
 	try {
 		const [exitCode] = await once(subprocess, 'close');
@@ -34,9 +34,10 @@ const getResult = async subprocess => {
 	}
 };
 
-const bufferOutput = (subprocess, result, streamName) => {
+const bufferOutput = (stream, result, streamName) => {
+	stream.setEncoding('utf8');
 	result[streamName] = '';
-	subprocess[streamName].on('data', chunk => {
+	stream.on('data', chunk => {
 		result[streamName] += chunk;
 	});
 };
