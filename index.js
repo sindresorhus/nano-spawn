@@ -1,5 +1,6 @@
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
+import {finished} from 'node:stream/promises';
 import {lineIterator, combineAsyncIterators} from './utilities.js';
 
 export default function nanoSpawn(command, commandArguments = [], options = {}) {
@@ -23,32 +24,43 @@ export default function nanoSpawn(command, commandArguments = [], options = {}) 
 
 const getResult = async subprocess => {
 	const result = {};
-	bufferOutput(subprocess.stdout, result, 'stdout');
-	bufferOutput(subprocess.stderr, result, 'stderr');
+	const onExit = waitForExit(subprocess);
+	const onStdoutDone = bufferOutput(subprocess.stdout, result, 'stdout');
+	const onStderrDone = bufferOutput(subprocess.stderr, result, 'stderr');
 
 	try {
-		await once(subprocess, 'close');
+		await Promise.all([onExit, onStdoutDone, onStderrDone]);
 		return getOutput(subprocess, result);
 	} catch (error) {
-		// The `error` event on subprocess is emitted either:
-		//  - Before `spawn`, e.g. for a non-existing executable file.
-		//    Then, `subprocess.pid` is `undefined` and `close` is never emitted.
-		//  - After `spawn`, e.g. for the `signal` option.
-		//    Then, `subprocess.pid` is set and `close` is always emitted.
-		if (subprocess.pid !== undefined) {
-			await Promise.allSettled([once(subprocess, 'close')]);
-		}
-
+		await Promise.allSettled([onExit, onStdoutDone, onStderrDone]);
 		throw Object.assign(error, getOutput(subprocess, result));
 	}
 };
 
-const bufferOutput = (stream, result, streamName) => {
+// The `error` event on subprocess is emitted either:
+//  - Before `spawn`, e.g. for a non-existing executable file.
+//    Then, `subprocess.pid` is `undefined` and `close` is never emitted.
+//  - After `spawn`, e.g. for the `signal` option.
+//    Then, `subprocess.pid` is set and `close` is always emitted.
+const waitForExit = async subprocess => {
+	try {
+		await once(subprocess, 'close');
+	} catch (error) {
+		if (subprocess.pid !== undefined) {
+			await Promise.allSettled([once(subprocess, 'close')]);
+		}
+
+		throw error;
+	}
+};
+
+const bufferOutput = async (stream, result, streamName) => {
 	stream.setEncoding('utf8');
 	result[streamName] = '';
 	stream.on('data', chunk => {
 		result[streamName] += chunk;
 	});
+	await finished(stream, {cleanup: true});
 };
 
 const getOutput = ({exitCode, signalCode}, {stdout, stderr}) => ({
