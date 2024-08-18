@@ -1,13 +1,4 @@
-export function streamToIterable(stream) {
-	return {
-		[Symbol.asyncIterator]: stream[Symbol.asyncIterator].bind(stream),
-	};
-}
-
-export async function * combineAsyncIterables(iterable1, iterable2) {
-	const iterator1 = iterable1[Symbol.asyncIterator]();
-	const iterator2 = iterable2[Symbol.asyncIterator]();
-
+export async function * combineAsyncIterators(iterator1, iterator2) {
 	while (true) {
 		// eslint-disable-next-line no-await-in-loop
 		const [result1, result2] = await Promise.all([
