@@ -25,20 +25,9 @@ export default function nanoSpawn(command, arguments_ = [], {signal, timeout, na
 	const stdoutLines = lineIterator(subprocess.stdout);
 	const stderrLines = lineIterator(subprocess.stderr);
 
-	return {
+	return Object.assign(promise, {
 		[Symbol.asyncIterator]: () => combineAsyncIterables(stdoutLines, stderrLines),
 		stdout: stdoutLines,
 		stderr: stderrLines,
-		/* eslint-disable promise/prefer-await-to-then */
-		then(onFulfilled, onRejected) { // eslint-disable-line unicorn/no-thenable
-			return promise.then(onFulfilled, onRejected);
-		},
-		catch(onRejected) {
-			return promise.catch(onRejected);
-		},
-		finally(onFinally) {
-			return promise.finally(onFinally);
-		},
-		/* eslint-enable promise/prefer-await-to-then */
-	};
+	});
 }

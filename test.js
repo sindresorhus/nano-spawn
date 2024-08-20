@@ -47,3 +47,11 @@ test('rejects on error', async t => {
 		nanoSpawn('non-existent-command'),
 	);
 });
+
+test('returns a promise', async t => {
+	const result = nanoSpawn('echo');
+	t.false(Object.prototype.propertyIsEnumerable.call(result, 'then'));
+	t.false(Object.hasOwn(result, 'then'));
+	t.true(result instanceof Promise);
+	await result;
+});
