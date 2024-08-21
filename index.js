@@ -30,6 +30,7 @@ export default function nanoSpawn(command, rawArguments = [], rawOptions = {}) {
 	const stderrLines = lineIterator(subprocess.stderr);
 
 	return Object.assign(promise, {
+		subprocess,
 		[Symbol.asyncIterator]: () => combineAsyncIterables(stdoutLines, stderrLines),
 		stdout: stdoutLines,
 		stderr: stderrLines,
