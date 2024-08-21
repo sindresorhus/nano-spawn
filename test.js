@@ -11,6 +11,11 @@ const arrayFromAsync = async asyncIterable => {
 	return chunks;
 };
 
+test('can pass options object without any arguments', async t => {
+	const {exitCode} = await nanoSpawn('node', {timeout: 1});
+	t.is(exitCode, null);
+});
+
 test('can be awaited', async t => {
 	const result = await nanoSpawn('echo', ['🦄']);
 	// TODO
