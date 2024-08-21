@@ -29,15 +29,13 @@ export async function * combineAsyncIterables(iterable1, iterable2) {
 	}
 }
 
-export async function * lineIterator(iterable) {
+export async function * lineIterator(stream) {
+	stream.setEncoding('utf8');
 	let buffer = '';
-	for await (const chunk of iterable) {
-		buffer += chunk;
-		const lines = buffer.split('\n');
+	for await (const chunk of stream) {
+		const lines = `${buffer}${chunk}`.split(/\r?\n/);
 		buffer = lines.pop(); // Keep last line in buffer as it may not be complete
-		for (const line of lines) {
-			yield line;
-		}
+		yield * lines;
 	}
 
 	if (buffer) {
