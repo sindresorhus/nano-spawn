@@ -1,5 +1,5 @@
 import {spawn} from 'node:child_process';
-import {lineIterator, combineAsyncIterables} from './utilities.js';
+import {lineIterator, combineAsyncIterators} from './utilities.js';
 
 export default function nanoSpawn(command, rawArguments = [], rawOptions = {}) {
 	const [commandArguments, {signal, timeout, nativeOptions}] = Array.isArray(rawArguments)
@@ -31,7 +31,7 @@ export default function nanoSpawn(command, rawArguments = [], rawOptions = {}) {
 
 	return Object.assign(promise, {
 		subprocess,
-		[Symbol.asyncIterator]: () => combineAsyncIterables(stdoutLines, stderrLines),
+		[Symbol.asyncIterator]: () => combineAsyncIterators(stdoutLines, stderrLines),
 		stdout: stdoutLines,
 		stderr: stderrLines,
 	});
