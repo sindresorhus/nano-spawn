@@ -16,30 +16,62 @@ test('can pass options object without any arguments', async t => {
 	t.is(exitCode, null);
 });
 
-test('can be awaited', async t => {
-	const result = await nanoSpawn('echo', ['🦄']);
-	// TODO
-	// t.is(result.stdout, '🦄');
-	t.is(result.exitCode, 0);
+test('result.exitCode is set', async t => {
+	const {exitCode} = await nanoSpawn('node', ['--version']);
+	t.is(exitCode, 0);
 });
 
-test('stdout produces correct output', async t => {
-	const result = nanoSpawn('echo', ['Hello\nWorld']);
-	const lines = await arrayFromAsync(result.stdout);
-	t.deepEqual(lines, ['Hello', 'World']);
+test('result.stdout is set', async t => {
+	const {stdout, stderr} = await nanoSpawn('node', ['-e', 'console.log(".")']);
+	t.is(stdout, '.');
+	t.is(stderr, '');
 });
 
-test('stderr produces correct output', async t => {
-	const result = nanoSpawn('ls', ['non-existent-file']);
-	const lines = await arrayFromAsync(result.stderr);
-	t.is(lines.length, 1);
-	t.regex(lines[0], /No such file/);
+test('result.stderr is set', async t => {
+	const {stdout, stderr} = await nanoSpawn('node', ['-e', 'console.error(".")']);
+	t.is(stdout, '');
+	t.is(stderr, '.');
 });
 
-test('combines stdout and stderr correctly', async t => {
-	const result = nanoSpawn('bash', ['-c', 'echo "stdout\nstdout2"; echo "stderr\nstderr2" 1>&2']);
-	const lines = await arrayFromAsync(result);
-	t.deepEqual(lines, ['stdout', 'stderr', 'stdout2', 'stderr2']);
+test('result.stdout strips Windows newline', async t => {
+	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write(".\\r\\n")']);
+	t.is(stdout, '.');
+});
+
+test('result.stderr strips Windows newline', async t => {
+	const {stderr} = await nanoSpawn('node', ['-e', 'process.stderr.write(".\\r\\n")']);
+	t.is(stderr, '.');
+});
+
+test('promise.stdout can be iterated', async t => {
+	const promise = nanoSpawn('node', ['-e', 'console.log("a\\nb")']);
+
+	const lines = await arrayFromAsync(promise.stdout);
+	t.deepEqual(lines, ['a', 'b']);
+
+	const {stdout} = await promise;
+	t.is(stdout, 'a\nb');
+});
+
+test('promise.stderr can be iterated', async t => {
+	const promise = nanoSpawn('node', ['-e', 'console.error("a\\nb")']);
+
+	const lines = await arrayFromAsync(promise.stderr);
+	t.deepEqual(lines, ['a', 'b']);
+
+	const {stderr} = await promise;
+	t.is(stderr, 'a\nb');
+});
+
+test('promise can be iterated with both stdout and stderr', async t => {
+	const promise = nanoSpawn('node', ['-e', 'console.log("a"); console.error("b"); console.log("c"); console.error("d");']);
+
+	const lines = await arrayFromAsync(promise);
+	t.deepEqual(lines, ['a', 'b', 'c', 'd']);
+
+	const {stdout, stderr} = await promise;
+	t.is(stdout, 'a\nc');
+	t.is(stderr, 'b\nd');
 });
 
 test('stdout handles no newline at the end', async t => {
@@ -79,7 +111,7 @@ test('rejects on error', async t => {
 });
 
 test('returns a promise', async t => {
-	const result = nanoSpawn('echo');
+	const result = nanoSpawn('node', ['--version']);
 	t.false(Object.prototype.propertyIsEnumerable.call(result, 'then'));
 	t.false(Object.hasOwn(result, 'then'));
 	t.true(result instanceof Promise);
