@@ -12,6 +12,13 @@ const arrayFromAsync = async asyncIterable => {
 	return chunks;
 };
 
+const testString = 'test';
+
+test('can pass options.argv0', async t => {
+	const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString});
+	t.is(stdout, testString);
+});
+
 test('can pass options object without any arguments', async t => {
 	const {exitCode, signalName} = await nanoSpawn('node', {timeout: 1});
 	t.is(exitCode, undefined);
@@ -37,7 +44,7 @@ test('result.exitCode|signalName on signal termination', async t => {
 });
 
 test('result.exitCode|signalName on invalid child_process options', t => {
-	const {exitCode, signalName} = t.throws(() => nanoSpawn('node', ['--version'], {nativeOptions: {detached: 'true'}}));
+	const {exitCode, signalName} = t.throws(() => nanoSpawn('node', ['--version'], {detached: 'true'}));
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
 });
