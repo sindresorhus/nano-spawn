@@ -1,3 +1,4 @@
+import {setTimeout} from 'node:timers/promises';
 import test from 'ava';
 import nanoSpawn from './index.js';
 
@@ -73,6 +74,20 @@ test('result.stdout strips Windows newline', async t => {
 test('result.stderr strips Windows newline', async t => {
 	const {stderr} = await nanoSpawn('node', ['-e', 'process.stderr.write(".\\r\\n")']);
 	t.is(stderr, '.');
+});
+
+const multibyteString = '.\u{1F984}.';
+const multibyteUint8Array = new TextEncoder().encode(multibyteString);
+const multibyteFirstHalf = multibyteUint8Array.slice(0, 3);
+const multibyteSecondHalf = multibyteUint8Array.slice(3);
+
+test.serial('result.stdout works with multibyte sequences', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout)']);
+	promise.subprocess.stdin.write(multibyteFirstHalf);
+	await setTimeout(1e2);
+	promise.subprocess.stdin.end(multibyteSecondHalf);
+	const {stdout} = await promise;
+	t.is(stdout, multibyteString);
 });
 
 test('promise.stdout can be iterated', async t => {
