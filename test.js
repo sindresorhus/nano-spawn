@@ -173,3 +173,17 @@ test('promise.subprocess is set', async t => {
 	const {exitCode} = await promise;
 	t.is(exitCode, undefined);
 });
+
+test('Handles stdout error', async t => {
+	const promise = nanoSpawn('node', ['--version']);
+	const error = new Error(testString);
+	promise.subprocess.stdout.emit('error', error);
+	t.is(await t.throwsAsync(promise), error);
+});
+
+test('Handles stderr error', async t => {
+	const promise = nanoSpawn('node', ['--version']);
+	const error = new Error(testString);
+	promise.subprocess.stderr.emit('error', error);
+	t.is(await t.throwsAsync(promise), error);
+});
