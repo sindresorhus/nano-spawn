@@ -72,6 +72,15 @@ test('options.stdio string has priority over options.stdout', async t => {
 	await promise;
 });
 
+test.serial('options.env augments process.env', async t => {
+	process.env.ONE = 'one';
+	process.env.TWO = 'two';
+	const {stdout} = await nanoSpawn('node', ['-p', 'process.env.ONE + process.env.TWO'], {env: {TWO: testString}});
+	t.is(stdout, `${process.env.ONE}${testString}`);
+	delete process.env.ONE;
+	delete process.env.TWO;
+});
+
 test('can pass options object without any arguments', async t => {
 	const {exitCode, signalName} = await t.throwsAsync(nanoSpawn('node', {timeout: 1}));
 	t.is(exitCode, undefined);
@@ -300,7 +309,7 @@ if (isWindows) {
 	test('Ignores PATHEXT without options.shell', async t => {
 		t.is(path.extname(process.execPath), '.exe');
 		const {stdout} = await nanoSpawn(process.execPath.slice(0, -4), ['-e', 'console.log(".")'], {
-			env: {...process.env, PATHEXT: '.COM'},
+			env: {PATHEXT: '.COM'},
 			shell: false,
 		});
 		t.is(stdout, '.');
@@ -309,7 +318,7 @@ if (isWindows) {
 	test('Uses PATHEXT with options.shell', async t => {
 		t.is(path.extname(process.execPath), '.exe');
 		const {exitCode, stderr} = await t.throwsAsync(nanoSpawn(process.execPath.slice(0, -4), ['-e', 'console.log(".")'], {
-			env: {...process.env, PATHEXT: '.COM'},
+			env: {PATHEXT: '.COM'},
 			shell: true,
 		}));
 		t.is(exitCode, 1);

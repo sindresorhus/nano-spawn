@@ -1,5 +1,6 @@
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
+import process from 'node:process';
 import {finished} from 'node:stream/promises';
 import {lineIterator, combineAsyncIterators} from './utilities.js';
 
@@ -27,10 +28,12 @@ const getOptions = ({
 	stdout,
 	stderr,
 	stdio = [stdin, stdout, stderr],
+	env,
 	...options
 }) => ({
 	...options,
 	stdio,
+	env: env === undefined ? env : {...process.env, ...env},
 });
 
 const getResult = async subprocess => {
