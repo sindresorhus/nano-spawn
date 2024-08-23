@@ -9,11 +9,12 @@ export default function nanoSpawn(file, commandArguments = [], options = {}) {
 	[commandArguments, options] = Array.isArray(commandArguments)
 		? [commandArguments, options]
 		: [[], commandArguments];
+	const start = process.hrtime.bigint();
 	const command = getCommand(file, commandArguments);
 
 	const subprocess = spawn(file, commandArguments, getOptions(options));
 
-	const promise = getResult(subprocess, command);
+	const promise = getResult(subprocess, start, command);
 
 	const stdoutLines = lineIterator(subprocess.stdout);
 	const stderrLines = lineIterator(subprocess.stderr);
@@ -49,7 +50,7 @@ const getCommandPart = part => {
 		: part;
 };
 
-const getResult = async (subprocess, command) => {
+const getResult = async (subprocess, start, command) => {
 	const result = {};
 	const onExit = waitForExit(subprocess);
 	const onStdoutDone = bufferOutput(subprocess.stdout, result, 'stdout');
@@ -57,12 +58,12 @@ const getResult = async (subprocess, command) => {
 
 	try {
 		await Promise.all([onExit, onStdoutDone, onStderrDone]);
-		const output = getOutput(subprocess, result, command);
+		const output = getOutput(subprocess, result, command, start);
 		checkFailure(command, output);
 		return output;
 	} catch (error) {
 		await Promise.allSettled([onExit, onStdoutDone, onStderrDone]);
-		throw Object.assign(getResultError(error, command), getOutput(subprocess, result, command));
+		throw Object.assign(getResultError(error, command), getOutput(subprocess, result, command, start));
 	}
 };
 
@@ -96,13 +97,14 @@ const bufferOutput = async (stream, result, streamName) => {
 	await finished(stream, {cleanup: true});
 };
 
-const getOutput = ({exitCode, signalCode}, {stdout, stderr}, command) => ({
+const getOutput = ({exitCode, signalCode}, {stdout, stderr}, command, start) => ({
 	// `exitCode` can be a negative number (`errno`) when the `error` event is emitted on the subprocess
 	...(exitCode === null || exitCode < 0 ? {} : {exitCode}),
 	...(signalCode === null ? {} : {signalName: signalCode}),
 	stdout: stripNewline(stdout),
 	stderr: stripNewline(stderr),
 	command,
+	durationMs: Number(process.hrtime.bigint() - start) / 1e6,
 });
 
 const stripNewline = input => input?.at(-1) === '\n'
