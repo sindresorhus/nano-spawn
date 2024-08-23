@@ -1,6 +1,7 @@
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {stripVTControlCharacters} from 'node:util';
+import process from 'node:process';
 import {finished} from 'node:stream/promises';
 import {lineIterator, combineAsyncIterators} from './utilities.js';
 
@@ -29,10 +30,12 @@ const getOptions = ({
 	stdout,
 	stderr,
 	stdio = [stdin, stdout, stderr],
+	env,
 	...options
 }) => ({
 	...options,
 	stdio,
+	env: env === undefined ? env : {...process.env, ...env},
 });
 
 const getCommand = (file, commandArguments) => [file, ...commandArguments]
