@@ -21,6 +21,10 @@ export async function * combineAsyncIterators(iterator1, iterator2) {
 }
 
 export async function * lineIterator(iterable) {
+	if (!iterable) {
+		return;
+	}
+
 	let buffer = '';
 	for await (const chunk of iterable) {
 		const lines = `${buffer}${chunk}`.split(/\r?\n/);

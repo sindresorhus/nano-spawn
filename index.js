@@ -8,7 +8,7 @@ export default function nanoSpawn(command, commandArguments = [], options = {}) 
 		? [commandArguments, options]
 		: [[], commandArguments];
 
-	const subprocess = spawn(command, commandArguments, options);
+	const subprocess = spawn(command, commandArguments, getOptions(options));
 
 	const promise = getResult(subprocess);
 
@@ -21,6 +21,17 @@ export default function nanoSpawn(command, commandArguments = [], options = {}) 
 		stderr: stderrLines,
 	});
 }
+
+const getOptions = ({
+	stdin,
+	stdout,
+	stderr,
+	stdio = [stdin, stdout, stderr],
+	...options
+}) => ({
+	...options,
+	stdio,
+});
 
 const getResult = async subprocess => {
 	const result = {};
@@ -57,6 +68,10 @@ const waitForExit = async subprocess => {
 };
 
 const bufferOutput = async (stream, result, streamName) => {
+	if (!stream) {
+		return;
+	}
+
 	stream.setEncoding('utf8');
 	result[streamName] = '';
 	stream.on('data', chunk => {
@@ -73,7 +88,7 @@ const getOutput = ({exitCode, signalCode}, {stdout, stderr}) => ({
 	stderr: stripNewline(stderr),
 });
 
-const stripNewline = input => input.at(-1) === '\n'
+const stripNewline = input => input?.at(-1) === '\n'
 	? input.slice(0, input.at(-2) === '\r' ? -2 : -1)
 	: input;
 
