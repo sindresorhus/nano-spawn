@@ -1,6 +1,11 @@
+import path from 'node:path';
+import process from 'node:process';
 import {setTimeout} from 'node:timers/promises';
 import test from 'ava';
 import nanoSpawn from './index.js';
+
+const isWindows = process.platform === 'win32';
+const FIXTURES_URL = new URL('fixtures', import.meta.url);
 
 // TODO: replace with Array.fromAsync() after dropping support for Node <22.0.0
 const arrayFromAsync = async asyncIterable => {
@@ -186,4 +191,74 @@ test('Handles stderr error', async t => {
 	const error = new Error(testString);
 	promise.subprocess.stderr.emit('error', error);
 	t.is(await t.throwsAsync(promise), error);
+});
+
+if (isWindows) {
+	test('Can run .exe file', async t => {
+		t.is(path.extname(process.execPath), '.exe');
+		const {stdout} = await nanoSpawn(process.execPath, ['-e', 'console.log(".")']);
+		t.is(stdout, '.');
+	});
+
+	test('Cannot run .cmd file without options.shell', t => {
+		const {code, syscall} = t.throws(() => nanoSpawn('test.cmd', {cwd: FIXTURES_URL, shell: false}));
+		t.is(code, 'EINVAL');
+		t.is(syscall, 'spawn');
+	});
+
+	test('Can run .cmd file with options.shell', async t => {
+		const {stdout} = await nanoSpawn('test.cmd', {cwd: FIXTURES_URL, shell: true});
+		t.true(stdout.endsWith(testString));
+	});
+
+	test('Ignores PATHEXT without options.shell', async t => {
+		t.is(path.extname(process.execPath), '.exe');
+		const {stdout} = await nanoSpawn(process.execPath.slice(0, -4), ['-e', 'console.log(".")'], {
+			env: {...process.env, PATHEXT: '.COM'},
+			shell: false,
+		});
+		t.is(stdout, '.');
+	});
+
+	test('Uses PATHEXT with options.shell', async t => {
+		t.is(path.extname(process.execPath), '.exe');
+		const {exitCode, stderr} = await nanoSpawn(process.execPath.slice(0, -4), ['-e', 'console.log(".")'], {
+			env: {...process.env, PATHEXT: '.COM'},
+			shell: true,
+		});
+		t.is(exitCode, 1);
+		t.true(stderr.includes('not recognized as an internal or external command'));
+	});
+} else {
+	test('Can run shebangs', async t => {
+		const {stdout} = await nanoSpawn('./shebang.js', {cwd: FIXTURES_URL});
+		t.is(stdout, testString);
+	});
+}
+
+test('Handles non-existing command without options.shell', async t => {
+	const {code, syscall} = await t.throwsAsync(nanoSpawn('non-existent-command', {shell: false}));
+	t.is(code, 'ENOENT');
+	t.is(syscall, 'spawn non-existent-command');
+});
+
+test('Handles non-existing command with options.shell', async t => {
+	const {exitCode, stderr} = await nanoSpawn('non-existent-command', {shell: true});
+	if (isWindows) {
+		t.is(exitCode, 1);
+		t.true(stderr.includes('not recognized as an internal or external command'));
+	} else {
+		t.is(exitCode, 127);
+		t.true(stderr.includes('not found'));
+	}
+});
+
+test('Can run global npm binaries', async t => {
+	const {stdout} = await nanoSpawn('npm', ['--version'], {shell: isWindows});
+	t.regex(stdout, /^\d+\.\d+\.\d+/);
+});
+
+test('Can run OS binaries', async t => {
+	const {stdout} = await nanoSpawn('git', ['--version']);
+	t.regex(stdout, /^git version \d+\.\d+\.\d+/);
 });
