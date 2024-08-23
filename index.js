@@ -30,7 +30,9 @@ const getResult = async subprocess => {
 
 	try {
 		await Promise.all([onExit, onStdoutDone, onStderrDone]);
-		return getOutput(subprocess, result);
+		const output = getOutput(subprocess, result);
+		checkFailure(output);
+		return output;
 	} catch (error) {
 		await Promise.allSettled([onExit, onStdoutDone, onStderrDone]);
 		throw Object.assign(error, getOutput(subprocess, result));
@@ -74,3 +76,13 @@ const getOutput = ({exitCode, signalCode}, {stdout, stderr}) => ({
 const stripNewline = input => input.at(-1) === '\n'
 	? input.slice(0, input.at(-2) === '\r' ? -2 : -1)
 	: input;
+
+const checkFailure = ({exitCode, signalName}) => {
+	if (signalName !== undefined) {
+		throw new Error(`Command was terminated with ${signalName}.`);
+	}
+
+	if (exitCode !== 0) {
+		throw new Error(`Command failed with exit code ${exitCode}.`);
+	}
+};
