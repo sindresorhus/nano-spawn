@@ -11,9 +11,12 @@ export default function nanoSpawn(file, commandArguments = [], options = {}) {
 		: [[], commandArguments];
 	const start = process.hrtime.bigint();
 	const command = getCommand(file, commandArguments);
+	const spawnOptions = getOptions(options);
+	const input = getInput(spawnOptions);
 
-	const subprocess = spawn(file, commandArguments, getOptions(options));
+	const subprocess = spawn(file, commandArguments, spawnOptions);
 
+	useInput(subprocess, input);
 	const promise = getResult(subprocess, start, command);
 
 	const stdoutLines = lineIterator(subprocess.stdout);
@@ -25,6 +28,17 @@ export default function nanoSpawn(file, commandArguments = [], options = {}) {
 		stderr: stderrLines,
 	});
 }
+
+const getCommand = (file, commandArguments) => [file, ...commandArguments]
+	.map(part => getCommandPart(part))
+	.join(' ');
+
+const getCommandPart = part => {
+	part = stripVTControlCharacters(part);
+	return /[^\w./-]/.test(part)
+		? `'${part.replaceAll('\'', '\'\\\'\'')}'`
+		: part;
+};
 
 const getOptions = ({
 	stdin,
@@ -39,15 +53,20 @@ const getOptions = ({
 	env: env === undefined ? env : {...process.env, ...env},
 });
 
-const getCommand = (file, commandArguments) => [file, ...commandArguments]
-	.map(part => getCommandPart(part))
-	.join(' ');
+const getInput = ({stdio}) => {
+	if (stdio[0]?.string === undefined) {
+		return;
+	}
 
-const getCommandPart = part => {
-	part = stripVTControlCharacters(part);
-	return /[^\w./-]/.test(part)
-		? `'${part.replaceAll('\'', '\'\\\'\'')}'`
-		: part;
+	const input = stdio[0].string;
+	stdio[0] = 'pipe';
+	return input;
+};
+
+const useInput = (subprocess, input) => {
+	if (input !== undefined) {
+		subprocess.stdin.end(input);
+	}
 };
 
 const getResult = async (subprocess, start, command) => {

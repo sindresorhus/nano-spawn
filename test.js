@@ -73,6 +73,16 @@ test('options.stdio string has priority over options.stdout', async t => {
 	await promise;
 });
 
+test('options.stdin can be {string: string}', async t => {
+	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout)'], {stdin: {string: testString}});
+	t.is(stdout, testString);
+});
+
+test('options.stdio[0] can be {string: string}', async t => {
+	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout)'], {stdio: [{string: testString}, 'pipe', 'pipe']});
+	t.is(stdout, testString);
+});
+
 test.serial('options.env augments process.env', async t => {
 	process.env.ONE = 'one';
 	process.env.TWO = 'two';
