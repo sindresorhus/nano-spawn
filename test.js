@@ -23,35 +23,35 @@ const arrayFromAsync = async asyncIterable => {
 
 const testString = 'test';
 
-test('can pass options.argv0', async t => {
+test('Can pass options.argv0', async t => {
 	const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString});
 	t.is(stdout, testString);
 });
 
-test('can pass options.argv0, shell', async t => {
+test('Can pass options.argv0, shell', async t => {
 	const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, shell: true});
 	t.is(stdout, 'node');
 });
 
-test('can pass options.stdin', async t => {
+test('Can pass options.stdin', async t => {
 	const promise = nanoSpawn('node', ['--version'], {stdin: 'ignore'});
 	t.is(promise.subprocess.stdin, null);
 	await promise;
 });
 
-test('can pass options.stdout', async t => {
+test('Can pass options.stdout', async t => {
 	const promise = nanoSpawn('node', ['--version'], {stdout: 'ignore'});
 	t.is(promise.subprocess.stdout, null);
 	await promise;
 });
 
-test('can pass options.stderr', async t => {
+test('Can pass options.stderr', async t => {
 	const promise = nanoSpawn('node', ['--version'], {stderr: 'ignore'});
 	t.is(promise.subprocess.stderr, null);
 	await promise;
 });
 
-test('can pass options.stdio array', async t => {
+test('Can pass options.stdio array', async t => {
 	const promise = nanoSpawn('node', ['--version'], {stdio: ['ignore', 'pipe', 'pipe', 'pipe']});
 	t.is(promise.subprocess.stdin, null);
 	t.not(promise.subprocess.stdout, null);
@@ -60,7 +60,7 @@ test('can pass options.stdio array', async t => {
 	await promise;
 });
 
-test('can pass options.stdio string', async t => {
+test('Can pass options.stdio string', async t => {
 	const promise = nanoSpawn('node', ['--version'], {stdio: 'ignore'});
 	t.is(promise.subprocess.stdin, null);
 	t.is(promise.subprocess.stdout, null);
@@ -100,7 +100,7 @@ test.serial('options.env augments process.env', async t => {
 	delete process.env.TWO;
 });
 
-test('can pass options object without any arguments', async t => {
+test('Can pass options object without any arguments', async t => {
 	const {exitCode, signalName} = await t.throwsAsync(nanoSpawn('node', {timeout: 1}));
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
@@ -112,7 +112,7 @@ test('result.exitCode|signalName on success', async t => {
 	t.is(signalName, undefined);
 });
 
-test('error on non-0 exit code', async t => {
+test('Error on non-0 exit code', async t => {
 	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('node', ['-e', 'process.exit(2)']));
 	t.is(exitCode, 2);
 	t.is(signalName, undefined);
@@ -120,7 +120,7 @@ test('error on non-0 exit code', async t => {
 	t.is(cause, undefined);
 });
 
-test('error on signal termination', async t => {
+test('Error on signal termination', async t => {
 	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('node', {timeout: 1}));
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
@@ -128,7 +128,7 @@ test('error on signal termination', async t => {
 	t.is(cause, undefined);
 });
 
-test('error on invalid child_process options', t => {
+test('Error on invalid child_process options', t => {
 	const {exitCode, signalName, message, cause} = t.throws(() => nanoSpawn('node', ['--version'], {detached: 'true'}));
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
@@ -137,7 +137,7 @@ test('error on invalid child_process options', t => {
 	t.is(cause, undefined);
 });
 
-test('error on "error" event before spawn', async t => {
+test('Error on "error" event before spawn', async t => {
 	const {stderr, cause} = await t.throwsAsync(nanoSpawn('non-existent-command'));
 
 	if (isWindows) {
@@ -147,7 +147,7 @@ test('error on "error" event before spawn', async t => {
 	}
 });
 
-test('error on "error" event after spawn', async t => {
+test('Error on "error" event after spawn', async t => {
 	const error = new Error(testString);
 	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('node', {signal: AbortSignal.abort(error)}));
 	t.is(exitCode, undefined);
@@ -285,7 +285,7 @@ test('stdout handles Windows newline at the end', async t => {
 	t.deepEqual(lines, ['Hello', 'World']);
 });
 
-test('returns a promise', async t => {
+test('Returns a promise', async t => {
 	const result = nanoSpawn('node', ['--version']);
 	t.false(Object.prototype.propertyIsEnumerable.call(result, 'then'));
 	t.false(Object.hasOwn(result, 'then'));
