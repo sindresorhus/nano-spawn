@@ -121,7 +121,7 @@ const getResult = async (nodeChildProcess, input, context) => {
 	try {
 		await Promise.race([onClose, ...onStreamErrors(instance)]);
 		checkFailure(context, getErrorOutput(instance));
-		return getOutput(context);
+		return getOutputs(context);
 	} catch (error) {
 		await Promise.allSettled([onClose]);
 		throw getResultError(error, instance, context);
@@ -134,7 +134,7 @@ const useInput = (instance, input) => {
 	}
 };
 
-const initState = () => ({stdout: '', stderr: ''});
+const initState = () => ({stdout: '', stderr: '', output: ''});
 
 const bufferOutput = (stream, {state}, streamName) => {
 	if (!stream) {
@@ -148,7 +148,9 @@ const bufferOutput = (stream, {state}, streamName) => {
 
 	state.isIterating = false;
 	stream.on('data', chunk => {
-		state[streamName] += chunk;
+		for (const outputName of [streamName, 'output']) {
+			state[outputName] += chunk;
+		}
 	});
 };
 
@@ -168,7 +170,7 @@ const IGNORED_CODES = new Set(['ERR_STREAM_PREMATURE_CLOSE', 'EPIPE']);
 const getResultError = (error, instance, context) => Object.assign(
 	getErrorInstance(error, context),
 	getErrorOutput(instance),
-	getOutput(context),
+	getOutputs(context),
 );
 
 const getErrorInstance = (error, {command}) => error?.message.startsWith('Command ')
@@ -181,14 +183,15 @@ const getErrorOutput = ({exitCode, signalCode}) => ({
 	...(signalCode === null ? {} : {signalName: signalCode}),
 });
 
-const getOutput = ({state: {stdout, stderr}, command, start}) => ({
-	stdout: stripNewline(stdout),
-	stderr: stripNewline(stderr),
+const getOutputs = ({state: {stdout, stderr, output}, command, start}) => ({
+	stdout: getOutput(stdout),
+	stderr: getOutput(stderr),
+	output: getOutput(output),
 	command,
 	durationMs: Number(process.hrtime.bigint() - start) / 1e6,
 });
 
-const stripNewline = input => input?.at(-1) === '\n'
+const getOutput = input => input?.at(-1) === '\n'
 	? input.slice(0, input.at(-2) === '\r' ? -2 : -1)
 	: input;
 
