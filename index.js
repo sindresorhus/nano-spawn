@@ -1,3 +1,4 @@
+import {Buffer} from 'node:buffer';
 import {spawn} from 'node:child_process';
 import {once, on} from 'node:events';
 import {stripVTControlCharacters} from 'node:util';
@@ -15,11 +16,16 @@ export default function nanoSpawn(first, second = [], third = {}) {
 	const start = previous.start ?? process.hrtime.bigint();
 	const spawnOptions = getOptions(options);
 	const command = [previous.command, getCommand(file, commandArguments)].filter(Boolean).join(' | ');
-	const context = {start, command, state: initState()};
+	const context = {
+		start,
+		command,
+		state: initState(spawnOptions),
+		spawnOptions,
+	};
 	[file, commandArguments] = handleNode(file, commandArguments);
 	const input = getInput(spawnOptions);
 
-	const nodeChildProcess = getInstance(file, commandArguments, spawnOptions, context);
+	const nodeChildProcess = getInstance(file, commandArguments, context);
 	const resultPromise = Object.assign(getResult(nodeChildProcess, input, context), {nodeChildProcess});
 	const finalPromise = previous.resultPromise === undefined ? resultPromise : handlePipe(previous, resultPromise);
 
@@ -93,7 +99,8 @@ const getInput = ({stdio}) => {
 	return input;
 };
 
-const getInstance = async (file, commandArguments, spawnOptions, context) => {
+const getInstance = async (file, commandArguments, context) => {
+	const {spawnOptions} = context;
 	try {
 		const forcedShell = await getForcedShell(file, spawnOptions);
 		spawnOptions.shell ||= forcedShell;
@@ -109,7 +116,7 @@ const getInstance = async (file, commandArguments, spawnOptions, context) => {
 		await once(instance, 'spawn');
 		return instance;
 	} catch (error) {
-		throw getResultError(error, initState(), context);
+		throw getResultError(error, initState(spawnOptions), context);
 	}
 };
 
@@ -121,7 +128,7 @@ const getResult = async (nodeChildProcess, input, context) => {
 	try {
 		await Promise.race([onClose, ...onStreamErrors(instance)]);
 		checkFailure(context, getErrorOutput(instance));
-		return getOutput(context);
+		return getOutputs(context);
 	} catch (error) {
 		await Promise.allSettled([onClose]);
 		throw getResultError(error, instance, context);
@@ -134,21 +141,32 @@ const useInput = (instance, input) => {
 	}
 };
 
-const initState = () => ({stdout: '', stderr: ''});
+// We use `Buffer` internally instead of `Uint8Array` because:
+//  - It pools the underlying `Uint8Arrays`
+//  - `Buffer.toString()` uses performant logic written in C++ (libuv)
+//  - It results in shorter code
+const initState = ({binary}) => binary
+	? {stdout: Buffer.alloc(0), stderr: Buffer.alloc(0)}
+	: {stdout: '', stderr: ''};
 
-const bufferOutput = (stream, {state}, streamName) => {
+const bufferOutput = (stream, {state, spawnOptions: {binary}}, streamName) => {
 	if (!stream) {
 		return;
 	}
 
-	stream.setEncoding('utf8');
+	if (!binary) {
+		stream.setEncoding('utf8');
+	}
+
 	if (state.isIterating) {
 		return;
 	}
 
 	state.isIterating = false;
 	stream.on('data', chunk => {
-		state[streamName] += chunk;
+		state[streamName] = binary
+			? Buffer.concat([state[streamName], chunk])
+			: `${state[streamName]}${chunk}`;
 	});
 };
 
@@ -168,7 +186,7 @@ const IGNORED_CODES = new Set(['ERR_STREAM_PREMATURE_CLOSE', 'EPIPE']);
 const getResultError = (error, instance, context) => Object.assign(
 	getErrorInstance(error, context),
 	getErrorOutput(instance),
-	getOutput(context),
+	getOutputs(context),
 );
 
 const getErrorInstance = (error, {command}) => error?.message.startsWith('Command ')
@@ -181,16 +199,22 @@ const getErrorOutput = ({exitCode, signalCode}) => ({
 	...(signalCode === null ? {} : {signalName: signalCode}),
 });
 
-const getOutput = ({state: {stdout, stderr}, command, start}) => ({
-	stdout: stripNewline(stdout),
-	stderr: stripNewline(stderr),
+const getOutputs = ({state: {stdout, stderr}, command, start, spawnOptions}) => ({
+	stdout: getOutput(stdout, spawnOptions),
+	stderr: getOutput(stderr, spawnOptions),
 	command,
 	durationMs: Number(process.hrtime.bigint() - start) / 1e6,
 });
 
-const stripNewline = input => input?.at(-1) === '\n'
-	? input.slice(0, input.at(-2) === '\r' ? -2 : -1)
-	: input;
+const getOutput = (output, {binary}) => {
+	if (binary) {
+		return new Uint8Array(output);
+	}
+
+	return output.at(-1) === '\n'
+		? output.slice(0, output.at(-2) === '\r' ? -2 : -1)
+		: output;
+};
 
 const checkFailure = ({command}, {exitCode, signalName}) => {
 	if (signalName !== undefined) {

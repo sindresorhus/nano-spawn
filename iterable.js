@@ -1,4 +1,4 @@
-export const lineIterator = async function * (resultPromise, {state}, streamName) {
+export const lineIterator = async function * (resultPromise, {state, spawnOptions: {binary}}, streamName) {
 	// Prevent buffering when iterating.
 	// This would defeat one of the main goals of iterating: low memory consumption.
 	if (state.isIterating === false) {
@@ -16,9 +16,13 @@ export const lineIterator = async function * (resultPromise, {state}, streamName
 	try {
 		let buffer = '';
 		for await (const chunk of stream.iterator({destroyOnReturn: false})) {
-			const lines = `${buffer}${chunk}`.split(/\r?\n/);
-			buffer = lines.pop(); // Keep last line in buffer as it may not be complete
-			yield * lines;
+			if (binary) {
+				yield new Uint8Array(chunk);
+			} else {
+				const lines = `${buffer}${chunk}`.split(/\r?\n/);
+				buffer = lines.pop(); // Keep last line in buffer as it may not be complete
+				yield * lines;
+			}
 		}
 
 		if (buffer) {
