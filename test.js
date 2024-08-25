@@ -3,6 +3,7 @@ import process from 'node:process';
 import {setTimeout} from 'node:timers/promises';
 import {fileURLToPath} from 'node:url';
 import test from 'ava';
+import getNode from 'get-node';
 import pathKey from 'path-key';
 import {red} from 'yoctocolors';
 import nanoSpawn from './index.js';
@@ -30,7 +31,7 @@ test('Can pass options.argv0', async t => {
 
 test('Can pass options.argv0, shell', async t => {
 	const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, shell: true});
-	t.is(stdout, 'node');
+	t.is(stdout, process.execPath);
 });
 
 test('Can pass options.stdin', async t => {
@@ -376,7 +377,7 @@ if (isWindows) {
 
 	test('.exe can use shell', async t => {
 		const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, shell: true});
-		t.is(stdout, 'node');
+		t.is(stdout, process.execPath);
 	});
 
 	test('.exe detection with explicit file extension', async t => {
@@ -602,4 +603,44 @@ test('Can pass arguments to local npm binaries, ?', testLocalBinary, '?');
 test('Can run OS binaries', async t => {
 	const {stdout} = await nanoSpawn('git', ['--version']);
 	t.regex(stdout, /^git version \d+\.\d+\.\d+/);
+});
+
+const nodeCliFlag = '--jitless';
+const inspectCliFlag = '--inspect-port=8091';
+
+test('Keeps Node flags', async t => {
+	const {stdout} = await nanoSpawn('node', [nodeCliFlag, 'node-flags.js'], {cwd: FIXTURES_URL});
+	t.true(stdout.includes(nodeCliFlag));
+});
+
+test('Does not keep --inspect* Node flags', async t => {
+	const {stdout} = await nanoSpawn('node', [nodeCliFlag, inspectCliFlag, 'node-flags.js'], {cwd: FIXTURES_URL});
+	t.true(stdout.includes(nodeCliFlag));
+	t.false(stdout.includes(inspectCliFlag));
+});
+
+test('Does not keep Node flags, full path', async t => {
+	const {stdout} = await nanoSpawn('node', [nodeCliFlag, 'node-flags-path.js'], {cwd: FIXTURES_URL});
+	t.false(stdout.includes(nodeCliFlag));
+});
+
+if (isWindows) {
+	test('Keeps Node flags, node.exe', async t => {
+		const {stdout} = await nanoSpawn('node.exe', [nodeCliFlag, 'node-flags.js'], {cwd: FIXTURES_URL});
+		t.true(stdout.includes(nodeCliFlag));
+	});
+
+	test('Keeps Node flags, case-insensitive', async t => {
+		const {stdout} = await nanoSpawn('NODE', [nodeCliFlag, 'node-flags.js'], {cwd: FIXTURES_URL});
+		t.true(stdout.includes(nodeCliFlag));
+	});
+}
+
+const TEST_NODE_VERSION = '18.0.0';
+
+test('Keeps Node version', async t => {
+	const {path: nodePath} = await getNode(TEST_NODE_VERSION);
+	t.not(nodePath, process.execPath);
+	const {stdout} = await nanoSpawn(nodePath, ['node-version.js'], {cwd: FIXTURES_URL});
+	t.is(stdout, `v${TEST_NODE_VERSION}`);
 });

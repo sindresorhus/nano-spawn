@@ -13,6 +13,7 @@ export default function nanoSpawn(file, commandArguments = [], options = {}) {
 	const start = process.hrtime.bigint();
 	const command = getCommand(file, commandArguments);
 	const spawnOptions = getOptions(options);
+	[file, commandArguments] = handleNode(file, commandArguments);
 	const forcedShell = getForcedShell(file, spawnOptions);
 	spawnOptions.shell ||= forcedShell;
 	const input = getInput(spawnOptions);
@@ -55,6 +56,13 @@ const getOptions = ({
 	stdio,
 	env: env === undefined ? env : {...process.env, ...env},
 });
+
+// When running `node`, keep the current Node version and CLI flags.
+// Not applied with file paths to `.../node` since those indicate a clear intent to use a specific Node version.
+// Does not work with shebangs, but those don't work cross-platform anyway.
+const handleNode = (file, commandArguments) => file.toLowerCase().replace(/\.exe$/, '') === 'node'
+	? [process.execPath, [...process.execArgv.filter(flag => !flag.startsWith('--inspect')), ...commandArguments]]
+	: [file, commandArguments];
 
 const getInput = ({stdio}) => {
 	if (stdio[0]?.string === undefined) {
