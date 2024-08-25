@@ -295,12 +295,16 @@ test('promise.stdout can be iterated', async t => {
 	const promise = nanoSpawn(...nodePrintStdout);
 	const lines = await arrayFromAsync(promise.stdout);
 	t.deepEqual(lines, [testString]);
+	const {stdout} = await promise;
+	t.is(stdout, '');
 });
 
 test('promise.stderr can be iterated', async t => {
 	const promise = nanoSpawn(...nodePrintStderr);
 	const lines = await arrayFromAsync(promise.stderr);
 	t.deepEqual(lines, [testString]);
+	const {stderr} = await promise;
+	t.is(stderr, '');
 });
 
 test('promise[Symbol.asyncIterator] can be iterated', async t => {
@@ -313,8 +317,8 @@ console.error("d");`));
 	t.deepEqual(lines, ['a', 'b', 'c', 'd']);
 
 	const {stdout, stderr} = await promise;
-	t.is(stdout, 'a\nb');
-	t.is(stderr, 'c\nd');
+	t.is(stdout, '');
+	t.is(stderr, '');
 });
 
 test.serial('promise iteration can be interleaved', async t => {
@@ -333,8 +337,8 @@ for (let index = 0; index < ${length}; index += 1) {
 	t.deepEqual(lines, Array.from({length}, () => ['a', 'b']).flat());
 
 	const {stdout, stderr} = await promise;
-	t.is(stdout, Array.from({length}, () => 'a').join('\n'));
-	t.is(stderr, Array.from({length}, () => 'b').join('\n'));
+	t.is(stdout, '');
+	t.is(stderr, '');
 });
 
 test('result.stdout is set', async t => {
@@ -370,6 +374,9 @@ test('promise.stdout has no iterations if options.stdout "ignore"', async t => {
 	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(promise.stdout), arrayFromAsync(promise.stderr)]);
 	t.deepEqual(stdoutLines, []);
 	t.deepEqual(stderrLines, [secondTestString]);
+	const {stdout, stderr} = await promise;
+	t.is(stdout, '');
+	t.is(stderr, '');
 });
 
 test('promise.stderr has no iterations if options.stderr "ignore"', async t => {
@@ -377,24 +384,36 @@ test('promise.stderr has no iterations if options.stderr "ignore"', async t => {
 	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(promise.stdout), arrayFromAsync(promise.stderr)]);
 	t.deepEqual(stdoutLines, [testString]);
 	t.deepEqual(stderrLines, []);
+	const {stdout, stderr} = await promise;
+	t.is(stdout, '');
+	t.is(stderr, '');
 });
 
 test('promise[Symbol.asyncIterator] has iterations if only options.stdout "ignore"', async t => {
 	const promise = nanoSpawn(...nodePrintBoth, {stdout: 'ignore'});
 	const lines = await arrayFromAsync(promise);
 	t.deepEqual(lines, [secondTestString]);
+	const {stdout, stderr} = await promise;
+	t.is(stdout, '');
+	t.is(stderr, '');
 });
 
 test('promise[Symbol.asyncIterator] has iterations if only options.stderr "ignore"', async t => {
 	const promise = nanoSpawn(...nodePrintBoth, {stderr: 'ignore'});
 	const lines = await arrayFromAsync(promise);
 	t.deepEqual(lines, [testString]);
+	const {stdout, stderr} = await promise;
+	t.is(stdout, '');
+	t.is(stderr, '');
 });
 
 test('promise[Symbol.asyncIterator] has no iterations if only options.stdout + options.stderr "ignore"', async t => {
 	const promise = nanoSpawn(...nodePrintBoth, {stdout: 'ignore', stderr: 'ignore'});
 	const lines = await arrayFromAsync(promise);
 	t.deepEqual(lines, []);
+	const {stdout, stderr} = await promise;
+	t.is(stdout, '');
+	t.is(stderr, '');
 });
 
 test('result.stdout is an empty string if options.stdout "ignore"', async t => {
@@ -503,6 +522,8 @@ test.serial('promise.stdout works with multibyte sequences', async t => {
 	writeMultibyte(promise);
 	const lines = await arrayFromAsync(promise.stdout);
 	t.deepEqual(lines, [multibyteString]);
+	const {stdout} = await promise;
+	t.is(stdout, '');
 });
 
 test.serial('result.stdout works with multibyte sequences', async t => {
@@ -512,47 +533,60 @@ test.serial('result.stdout works with multibyte sequences', async t => {
 	t.is(stdout, multibyteString);
 });
 
+const destroyStdout = async ({nodeChildProcess}, error) => {
+	const {stdout} = await nodeChildProcess;
+	stdout.destroy(error);
+};
+
+const destroyStderr = async ({nodeChildProcess}, error) => {
+	const {stderr} = await nodeChildProcess;
+	stderr.destroy(error);
+};
+
 test('Handles promise.stdout error', async t => {
 	const promise = nanoSpawn(...nodePrintStdout);
 	const error = new Error(testString);
-	const {stdout} = await promise.nodeChildProcess;
-	stdout.emit('error', error);
+	destroyStdout(promise, error);
 	const {cause} = await t.throwsAsync(arrayFromAsync(promise.stdout));
 	t.is(cause, error);
+	const {stdout} = await t.throwsAsync(promise);
+	t.is(stdout, '');
 });
 
 test('Handles promise.stderr error', async t => {
-	const promise = nanoSpawn(...nodePrintStdout);
+	const promise = nanoSpawn(...nodePrintStderr);
 	const error = new Error(testString);
-	const {stderr} = await promise.nodeChildProcess;
-	stderr.emit('error', error);
+	destroyStderr(promise, error);
 	const {cause} = await t.throwsAsync(arrayFromAsync(promise.stderr));
 	t.is(cause, error);
+	const {stderr} = await t.throwsAsync(promise);
+	t.is(stderr, '');
 });
 
 test('Handles promise.stdout error in promise[Symbol.asyncIterator]', async t => {
 	const promise = nanoSpawn(...nodePrintStdout);
 	const error = new Error(testString);
-	const {stdout} = await promise.nodeChildProcess;
-	stdout.emit('error', error);
+	destroyStdout(promise, error);
 	const {cause} = await t.throwsAsync(arrayFromAsync(promise));
 	t.is(cause, error);
+	const {stdout} = await t.throwsAsync(promise);
+	t.is(stdout, '');
 });
 
 test('Handles promise.stderr error in promise[Symbol.asyncIterator]', async t => {
-	const promise = nanoSpawn(...nodePrintStdout);
+	const promise = nanoSpawn(...nodePrintStderr);
 	const error = new Error(testString);
-	const {stderr} = await promise.nodeChildProcess;
-	stderr.emit('error', error);
+	destroyStderr(promise, error);
 	const {cause} = await t.throwsAsync(arrayFromAsync(promise));
 	t.is(cause, error);
+	const {stderr} = await t.throwsAsync(promise);
+	t.is(stderr, '');
 });
 
 test('Handles result.stdout error', async t => {
 	const promise = nanoSpawn(...nodePrintStdout);
 	const error = new Error(testString);
-	const {stdout} = await promise.nodeChildProcess;
-	stdout.emit('error', error);
+	destroyStdout(promise, error);
 	const {cause} = await t.throwsAsync(promise);
 	t.is(cause, error);
 });
@@ -560,8 +594,7 @@ test('Handles result.stdout error', async t => {
 test('Handles result.stderr error', async t => {
 	const promise = nanoSpawn(...nodePrintStdout);
 	const error = new Error(testString);
-	const {stderr} = await promise.nodeChildProcess;
-	stderr.emit('error', error);
+	destroyStderr(promise, error);
 	const {cause} = await t.throwsAsync(promise);
 	t.is(cause, error);
 });
@@ -585,7 +618,7 @@ test.serial('promise.stdout iteration break waits for the subprocess success', a
 
 	t.true(done);
 	const {stdout} = await promise;
-	t.is(stdout, `${testString}\n${secondTestString}`);
+	t.is(stdout, '');
 });
 
 test.serial('promise[Symbol.asyncIterator] iteration break waits for the subprocess success', async t => {
@@ -607,7 +640,7 @@ test.serial('promise[Symbol.asyncIterator] iteration break waits for the subproc
 
 	t.true(done);
 	const {stdout} = await promise;
-	t.is(stdout, `${testString}\n${secondTestString}`);
+	t.is(stdout, '');
 });
 
 test.serial('promise.stdout iteration exception waits for the subprocess success', async t => {
@@ -634,7 +667,7 @@ test.serial('promise.stdout iteration exception waits for the subprocess success
 
 	t.true(done);
 	const {stdout} = await promise;
-	t.is(stdout, `${testString}\n${secondTestString}`);
+	t.is(stdout, '');
 });
 
 test.serial('promise[Symbol.asyncIterator] iteration exception waits for the subprocess success', async t => {
@@ -661,7 +694,7 @@ test.serial('promise[Symbol.asyncIterator] iteration exception waits for the sub
 
 	t.true(done);
 	const {stdout} = await promise;
-	t.is(stdout, `${testString}\n${secondTestString}`);
+	t.is(stdout, '');
 });
 
 test.serial('promise.stdout iteration break waits for the subprocess failure', async t => {
@@ -689,7 +722,7 @@ test.serial('promise.stdout iteration break waits for the subprocess failure', a
 	t.true(done);
 	const error = await t.throwsAsync(promise);
 	t.is(error, cause);
-	t.is(error.stdout, `${testString}\n${secondTestString}`);
+	t.is(error.stdout, '');
 });
 
 test.serial('promise[Symbol.asyncIterator] iteration break waits for the subprocess failure', async t => {
@@ -717,7 +750,7 @@ test.serial('promise[Symbol.asyncIterator] iteration break waits for the subproc
 	t.true(done);
 	const error = await t.throwsAsync(promise);
 	t.is(error, cause);
-	t.is(error.stdout, `${testString}\n${secondTestString}`);
+	t.is(error.stdout, '');
 });
 
 test.serial('promise.stdout iteration exception waits for the subprocess failure', async t => {
@@ -745,7 +778,7 @@ test.serial('promise.stdout iteration exception waits for the subprocess failure
 	t.true(done);
 	const error = await t.throwsAsync(promise);
 	t.not(error, cause);
-	t.is(error.stdout, `${testString}\n${secondTestString}`);
+	t.is(error.stdout, '');
 });
 
 test.serial('promise[Symbol.asyncIterator] iteration exception waits for the subprocess failure', async t => {
@@ -773,7 +806,7 @@ test.serial('promise[Symbol.asyncIterator] iteration exception waits for the sub
 	t.true(done);
 	const error = await t.throwsAsync(promise);
 	t.not(error, cause);
-	t.is(error.stdout, `${testString}\n${secondTestString}`);
+	t.is(error.stdout, '');
 });
 
 test('Returns a promise', async t => {
@@ -1436,50 +1469,69 @@ test('.pipe() with stdout stream in source', async t => {
 });
 
 test('.pipe() + stdout/stderr iteration', async t => {
-	const lines = await arrayFromAsync(nanoSpawn(...nodePrintStdout)
-		.pipe(...nodeToUpperCase));
+	const promise = nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCase);
+	const lines = await arrayFromAsync(promise);
 	t.deepEqual(lines, [testUpperCase]);
+	const {stdout, stderr} = await promise;
+	t.is(stdout, '');
+	t.is(stderr, '');
 });
 
 test('.pipe() + stdout iteration', async t => {
-	const lines = await arrayFromAsync(nanoSpawn(...nodePrintStdout)
-		.pipe(...nodeToUpperCase).stdout);
+	const promise = nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCase);
+	const lines = await arrayFromAsync(promise.stdout);
 	t.deepEqual(lines, [testUpperCase]);
+	const {stdout} = await promise;
+	t.is(stdout, '');
 });
 
 test('.pipe() + stderr iteration', async t => {
-	const lines = await arrayFromAsync(nanoSpawn(...nodePrintStdout)
-		.pipe(...nodeToUpperCaseStderr).stderr);
+	const promise = nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCaseStderr);
+	const lines = await arrayFromAsync(promise.stderr);
 	t.deepEqual(lines, [testUpperCase]);
+	const {stderr} = await promise;
+	t.is(stderr, '');
 });
 
 test('.pipe() + stdout iteration, source fail', async t => {
-	const {exitCode, stdout, message, command, durationMs} = await t.throwsAsync(arrayFromAsync(nanoSpawn(...nodePrintFail)
-		.pipe(...nodeToUpperCase).stdout));
+	const promise = nanoSpawn(...nodePrintFail)
+		.pipe(...nodeToUpperCase);
+	const {exitCode, stdout, message, command, durationMs} = await t.throwsAsync(arrayFromAsync(promise.stdout));
 	t.is(exitCode, 2);
 	t.is(stdout, testString);
 	t.true(message.startsWith(messageExitEvalFailStart));
 	t.true(command.startsWith(commandEvalFailStart));
 	t.true(durationMs > 0);
+	const error = await t.throwsAsync(promise);
+	t.is(error.stdout, testString);
 });
 
 test('.pipe() + stdout iteration, destination fail', async t => {
-	const {exitCode, stdout, message, command, durationMs} = await t.throwsAsync(arrayFromAsync(nanoSpawn(...nodePrintStdout)
-		.pipe(...nodeToUpperCaseFail).stdout));
+	const promise = nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCaseFail);
+	const {exitCode, stdout, message, command, durationMs} = await t.throwsAsync(arrayFromAsync(promise.stdout));
 	t.is(exitCode, 2);
-	t.is(stdout, testUpperCase);
+	t.is(stdout, '');
 	t.true(message.startsWith(messageExitEvalFailStart));
 	t.true(command.startsWith(commandEvalFailStart));
 	t.true(durationMs > 0);
+	const error = await t.throwsAsync(promise);
+	t.is(error.stdout, '');
 });
 
 test('.pipe() with EPIPE', async t => {
-	const lines = await arrayFromAsync(nanoSpawn(...nodeEval(`setInterval(() => {
+	const promise = nanoSpawn(...nodeEval(`setInterval(() => {
 	console.log("${testString}");
 }, 0);
 process.stdout.on("error", () => {
 	process.exit();
 });`))
-		.pipe('head', ['-n', '2']));
+		.pipe('head', ['-n', '2']);
+	const lines = await arrayFromAsync(promise);
 	t.deepEqual(lines, [testString, testString]);
+	const {stdout} = await promise;
+	t.is(stdout, '');
 });

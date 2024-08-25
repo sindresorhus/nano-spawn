@@ -15,16 +15,16 @@ export default function nanoSpawn(first, second = [], third = {}) {
 	const start = previous.start ?? process.hrtime.bigint();
 	const spawnOptions = getOptions(options);
 	const command = [previous.command, getCommand(file, commandArguments)].filter(Boolean).join(' | ');
-	const context = {start, command};
+	const context = {start, command, state: initState()};
 	[file, commandArguments] = handleNode(file, commandArguments);
 	const input = getInput(spawnOptions);
 
-	const instancePromise = getInstance(file, commandArguments, spawnOptions, context);
-	const resultPromise = Object.assign(getResult(instancePromise, input, context), {nodeChildProcess: instancePromise});
+	const nodeChildProcess = getInstance(file, commandArguments, spawnOptions, context);
+	const resultPromise = Object.assign(getResult(nodeChildProcess, input, context), {nodeChildProcess});
 	const finalPromise = previous.resultPromise === undefined ? resultPromise : handlePipe(previous, resultPromise);
 
-	const stdoutLines = lineIterator(finalPromise, 'stdout');
-	const stderrLines = lineIterator(finalPromise, 'stderr');
+	const stdoutLines = lineIterator(finalPromise, context, 'stdout');
+	const stderrLines = lineIterator(finalPromise, context, 'stderr');
 	return Object.assign(finalPromise, {
 		stdout: stdoutLines,
 		stderr: stderrLines,
@@ -98,6 +98,8 @@ const getInstance = async (file, commandArguments, spawnOptions, context) => {
 		const forcedShell = await getForcedShell(file, spawnOptions);
 		spawnOptions.shell ||= forcedShell;
 		const instance = spawn(...escapeArguments(file, commandArguments, forcedShell), spawnOptions);
+		bufferOutput(instance.stdout, context, 'stdout');
+		bufferOutput(instance.stderr, context, 'stderr');
 
 		// The `error` event is caught by `once(instance, 'spawn')` and `once(instance, 'close')`.
 		// But it creates an uncaught exception if it happens exactly one tick after 'spawn'.
@@ -107,25 +109,22 @@ const getInstance = async (file, commandArguments, spawnOptions, context) => {
 		await once(instance, 'spawn');
 		return instance;
 	} catch (error) {
-		throw getResultError(error, initResult(), {}, context);
+		throw getResultError(error, initState(), context);
 	}
 };
 
-const getResult = async (instancePromise, input, context) => {
-	const instance = await instancePromise;
+const getResult = async (nodeChildProcess, input, context) => {
+	const instance = await nodeChildProcess;
 	useInput(instance, input);
-	const result = initResult();
 	const onClose = once(instance, 'close');
-	bufferOutput(instance.stdout, result, 'stdout');
-	bufferOutput(instance.stderr, result, 'stderr');
 
 	try {
 		await Promise.race([onClose, ...onStreamErrors(instance)]);
 		checkFailure(context, getErrorOutput(instance));
-		return getOutput(result, context);
+		return getOutput(context);
 	} catch (error) {
 		await Promise.allSettled([onClose]);
-		throw getResultError(error, result, instance, context);
+		throw getResultError(error, instance, context);
 	}
 };
 
@@ -135,15 +134,22 @@ const useInput = (instance, input) => {
 	}
 };
 
-const initResult = () => ({stdout: '', stderr: ''});
+const initState = () => ({stdout: '', stderr: ''});
 
-const bufferOutput = (stream, result, streamName) => {
-	if (stream) {
-		stream.setEncoding('utf8');
-		stream.on('data', chunk => {
-			result[streamName] += chunk;
-		});
+const bufferOutput = (stream, {state}, streamName) => {
+	if (!stream) {
+		return;
 	}
+
+	stream.setEncoding('utf8');
+	if (state.isIterating) {
+		return;
+	}
+
+	state.isIterating = false;
+	stream.on('data', chunk => {
+		state[streamName] += chunk;
+	});
 };
 
 const onStreamErrors = ({stdio}) => stdio.filter(Boolean).map(stream => onStreamError(stream));
@@ -159,10 +165,10 @@ const onStreamError = async stream => {
 // Ignore errors that are due to closing errors when the subprocesses exit normally, or due to piping
 const IGNORED_CODES = new Set(['ERR_STREAM_PREMATURE_CLOSE', 'EPIPE']);
 
-const getResultError = (error, result, instance, context) => Object.assign(
+const getResultError = (error, instance, context) => Object.assign(
 	getErrorInstance(error, context),
 	getErrorOutput(instance),
-	getOutput(result, context),
+	getOutput(context),
 );
 
 const getErrorInstance = (error, {command}) => error?.message.startsWith('Command ')
@@ -175,7 +181,7 @@ const getErrorOutput = ({exitCode, signalCode}) => ({
 	...(signalCode === null ? {} : {signalName: signalCode}),
 });
 
-const getOutput = ({stdout, stderr}, {command, start}) => ({
+const getOutput = ({state: {stdout, stderr}, command, start}) => ({
 	stdout: stripNewline(stdout),
 	stderr: stripNewline(stderr),
 	command,

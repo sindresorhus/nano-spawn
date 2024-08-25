@@ -1,4 +1,12 @@
-export const lineIterator = async function * (resultPromise, streamName) {
+export const lineIterator = async function * (resultPromise, {state}, streamName) {
+	// Prevent buffering when iterating.
+	// This would defeat one of the main goals of iterating: low memory consumption.
+	if (state.isIterating === false) {
+		throw new Error(`The subprocess must be iterated right away, for example:
+	for await (const line of nanoSpawn(...)) { ... }`);
+	}
+
+	state.isIterating = true;
 	const instance = await resultPromise.nodeChildProcess;
 	const stream = instance[streamName];
 	if (!stream) {
