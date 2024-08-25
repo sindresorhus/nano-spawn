@@ -109,7 +109,7 @@ test('Can pass options object without any arguments', async t => {
 
 test('result.exitCode|signalName on success', async t => {
 	const {exitCode, signalName} = await nanoSpawn('node', ['--version']);
-	t.is(exitCode, 0);
+	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
 });
 
