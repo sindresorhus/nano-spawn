@@ -55,10 +55,10 @@ export const escapeArguments = (file, commandArguments, forcedShell) => forcedSh
 // `cmd.exe` escaping for arguments.
 // Taken from https://github.com/moxystudio/node-cross-spawn
 const escapeArgument = argument => {
-	const escapedArgument = String(argument)
+	const escapedArgument = argument
 		.replaceAll(/(\\*)"/g, '$1$1\\"')
 		.replace(/(\\*)$/, '$1$1');
-	return escapeFile(`"${escapedArgument}"`);
+	return escapeFile(escapeFile(`"${escapedArgument}"`));
 };
 
 // `cmd.exe` escaping for file and arguments.

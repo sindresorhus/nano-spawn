@@ -457,37 +457,62 @@ if (isWindows) {
 	test('Can set PATHEXT, no shell', testPathExtension, false);
 	test('Can set PATHEXT, shell', testPathExtension, true);
 
+	test('Escapes file when setting shell option', async t => {
+		const file = '()[]%0!`';
+		const {stdout} = await nanoSpawn(file, {cwd: FIXTURES_URL});
+		t.is(stdout, `${file}\r\n${file}`);
+	});
+
 	const testEscape = async (t, input) => {
 		const {stdout} = await nanoSpawn('spawnecho', [input], {cwd: FIXTURES_URL});
 		t.is(stdout, input);
 	};
 
-	test('Escapes when setting shell option, "', testEscape, '"');
-	test('Escapes when setting shell option, \\', testEscape, '\\');
-	test('Escapes when setting shell option, \\.', testEscape, '\\.');
-	test('Escapes when setting shell option, \\"', testEscape, '\\"');
-	test('Escapes when setting shell option, \\\\"', testEscape, '\\\\"');
-	test('Escapes when setting shell option, a b', testEscape, 'a b');
-	test('Escapes when setting shell option, \'.\'', testEscape, '\'.\'');
-	test('Escapes when setting shell option, "."', testEscape, '"."');
-	test('Escapes when setting shell option, (', testEscape, '(');
-	test('Escapes when setting shell option, )', testEscape, ')');
-	test('Escapes when setting shell option, ]', testEscape, ']');
-	test('Escapes when setting shell option, [', testEscape, '[');
-	test('Escapes when setting shell option, %', testEscape, '%');
-	test('Escapes when setting shell option, %1', testEscape, '%1');
-	test('Escapes when setting shell option, !', testEscape, '!');
-	test('Escapes when setting shell option, ^', testEscape, '^');
-	test('Escapes when setting shell option, `', testEscape, '`');
-	test('Escapes when setting shell option, <', testEscape, '<');
-	test('Escapes when setting shell option, >', testEscape, '>');
-	test('Escapes when setting shell option, &', testEscape, '&');
-	test('Escapes when setting shell option, |', testEscape, '|');
-	test('Escapes when setting shell option, ;', testEscape, ';');
-	test('Escapes when setting shell option, ,', testEscape, ',');
-	test('Escapes when setting shell option, space', testEscape, ' ');
-	test('Escapes when setting shell option, *', testEscape, '*');
-	test('Escapes when setting shell option, ?', testEscape, '?');
+	test('Escapes argument when setting shell option, "', testEscape, '"');
+	test('Escapes argument when setting shell option, \\', testEscape, '\\');
+	test('Escapes argument when setting shell option, \\.', testEscape, '\\.');
+	test('Escapes argument when setting shell option, \\"', testEscape, '\\"');
+	test('Escapes argument when setting shell option, \\\\"', testEscape, '\\\\"');
+	test('Escapes argument when setting shell option, a b', testEscape, 'a b');
+	test('Escapes argument when setting shell option, \'.\'', testEscape, '\'.\'');
+	test('Escapes argument when setting shell option, "."', testEscape, '"."');
+	test('Escapes argument when setting shell option, (', testEscape, '(');
+	test('Escapes argument when setting shell option, )', testEscape, ')');
+	test('Escapes argument when setting shell option, ]', testEscape, ']');
+	test('Escapes argument when setting shell option, [', testEscape, '[');
+	test('Escapes argument when setting shell option, %', testEscape, '%');
+	test('Escapes argument when setting shell option, !', testEscape, '!');
+	test('Escapes argument when setting shell option, ^', testEscape, '^');
+	test('Escapes argument when setting shell option, `', testEscape, '`');
+	test('Escapes argument when setting shell option, <', testEscape, '<');
+	test('Escapes argument when setting shell option, >', testEscape, '>');
+	test('Escapes argument when setting shell option, &', testEscape, '&');
+	test('Escapes argument when setting shell option, |', testEscape, '|');
+	test('Escapes argument when setting shell option, ;', testEscape, ';');
+	test('Escapes argument when setting shell option, ,', testEscape, ',');
+	test('Escapes argument when setting shell option, space', testEscape, ' ');
+	test('Escapes argument when setting shell option, *', testEscape, '*');
+	test('Escapes argument when setting shell option, ?', testEscape, '?');
+	test('Escapes argument when setting shell option, é', testEscape, 'é');
+	test('Escapes argument when setting shell option, empty', testEscape, '');
+	test('Escapes argument when setting shell option, ()', testEscape, '()');
+	test('Escapes argument when setting shell option, []', testEscape, '[]');
+	test('Escapes argument when setting shell option, %1', testEscape, '%1');
+	test('Escapes argument when setting shell option, %*', testEscape, '%*');
+	test('Escapes argument when setting shell option, %!', testEscape, '%!');
+	test('Escapes argument when setting shell option, %CD%', testEscape, '%CD%');
+	test('Escapes argument when setting shell option, ^<', testEscape, '^<');
+	test('Escapes argument when setting shell option, >&', testEscape, '>&');
+	test('Escapes argument when setting shell option, |;', testEscape, '|;');
+	test('Escapes argument when setting shell option, , space', testEscape, ', ');
+	test('Escapes argument when setting shell option, !=', testEscape, '!=');
+	test('Escapes argument when setting shell option, \\*', testEscape, '\\*');
+	test('Escapes argument when setting shell option, ?.', testEscape, '?.');
+	test('Escapes argument when setting shell option, =`', testEscape, '=`');
+	test('Escapes argument when setting shell option, --help 0', testEscape, '--help 0');
+	test('Escapes argument when setting shell option, "a b"', testEscape, '"a b"');
+	test('Escapes argument when setting shell option, "foo|bar>baz"', testEscape, '"foo|bar>baz"');
+	test('Escapes argument when setting shell option, "(foo|bar>baz|foz)"', testEscape, '"(foo|bar>baz|foz)"');
 
 	test('Cannot run shebangs', async t => {
 		const {message, exitCode, signalName, stderr, cause} = await t.throwsAsync(nanoSpawn('./shebang.js', {cwd: FIXTURES_URL}));
