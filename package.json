@@ -25,7 +25,8 @@
 	"files": [
 		"index.js",
 		"index.d.ts",
-		"utilities.js"
+		"iterable.js",
+		"windows.js"
 	],
 	"keywords": [
 		"spawn",
