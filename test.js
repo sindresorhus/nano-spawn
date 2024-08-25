@@ -1,3 +1,6 @@
+import {createReadStream, createWriteStream} from 'node:fs';
+import {readFile} from 'node:fs/promises';
+import {once} from 'node:events';
 import path from 'node:path';
 import process from 'node:process';
 import {setTimeout} from 'node:timers/promises';
@@ -5,13 +8,15 @@ import {fileURLToPath} from 'node:url';
 import test from 'ava';
 import getNode from 'get-node';
 import pathKey from 'path-key';
+import {temporaryWriteTask} from 'tempy';
 import {red} from 'yoctocolors';
 import nanoSpawn from './index.js';
 
 const isLinux = process.platform === 'linux';
 const isWindows = process.platform === 'win32';
-const FIXTURES_URL = new URL('fixtures', import.meta.url);
+const FIXTURES_URL = new URL('fixtures/', import.meta.url);
 const fixturesPath = fileURLToPath(FIXTURES_URL);
+const testFixtureUrl = new URL('test.txt', FIXTURES_URL);
 
 // TODO: replace with Array.fromAsync() after dropping support for Node <22.0.0
 const arrayFromAsync = async asyncIterable => {
@@ -1390,17 +1395,44 @@ test('.pipe() which has hanging stdin', async t => {
 	t.is(stdout, '');
 });
 
-test('.pipe() with stdin "ignore"', async t => {
-	const {stdout} = await nanoSpawn(...nodePrintStdout)
-		.pipe(...nodeToUpperCase, {stdin: 'ignore'});
+test('.pipe() with stdin stream in source', async t => {
+	const stream = createReadStream(testFixtureUrl);
+	await once(stream, 'open');
+	const {stdout} = await nanoSpawn(...nodePassThrough, {stdin: stream})
+		.pipe(...nodeToUpperCase);
 	t.is(stdout, testUpperCase);
 });
 
-test('.pipe() with stdout "ignore"', async t => {
+test('.pipe() with stdin stream in destination', async t => {
+	const stream = createReadStream(testFixtureUrl);
+	await once(stream, 'open');
 	await t.throwsAsync(
-		nanoSpawn(...nodePrintStdout, {stdout: 'ignore'})
-			.pipe(...nodeToUpperCase),
-		{message: 'The "stdout" option cannot be combined with ".pipe()".'});
+		nanoSpawn(...nodePassThrough)
+			.pipe(...nodeToUpperCase, {stdin: stream}),
+		{message: 'The "stdin" option must be set on the first "nanoSpawn()" call in the pipeline.'});
+});
+
+test('.pipe() with stdout stream in destination', async t => {
+	await temporaryWriteTask('', async temporaryPath => {
+		const stream = createWriteStream(temporaryPath);
+		await once(stream, 'open');
+		const {stdout} = await nanoSpawn(...nodePrintStdout)
+			.pipe(...nodePassThrough, {stdout: stream});
+		t.is(stdout, '');
+		t.is(await readFile(temporaryPath, 'utf8'), `${testString}\n`);
+	});
+});
+
+test('.pipe() with stdout stream in source', async t => {
+	await temporaryWriteTask('', async temporaryPath => {
+		const stream = createWriteStream(temporaryPath);
+		await once(stream, 'open');
+		await t.throwsAsync(
+			nanoSpawn(...nodePrintStdout, {stdout: stream})
+				.pipe(...nodePassThrough),
+			{message: 'The "stdout" option must be set on the last "nanoSpawn()" call in the pipeline.'},
+		);
+	});
 });
 
 test('.pipe() + stdout/stderr iteration', async t => {

@@ -1,18 +1,4 @@
-import {pipe} from './pipe.js';
-
-export const addPromiseMethods = (resultPromise, context) => {
-	const stdoutLines = lineIterator(resultPromise, 'stdout');
-	const stderrLines = lineIterator(resultPromise, 'stderr');
-
-	return Object.assign(resultPromise, {
-		stdout: stdoutLines,
-		stderr: stderrLines,
-		[Symbol.asyncIterator]: () => combineAsyncIterators(stdoutLines, stderrLines),
-		pipe: pipe.bind(undefined, {resultPromise, context}),
-	});
-};
-
-const lineIterator = async function * (resultPromise, streamName) {
+export const lineIterator = async function * (resultPromise, streamName) {
 	const instance = await resultPromise.nodeChildProcess;
 	const stream = instance[streamName];
 	if (!stream) {
@@ -36,7 +22,7 @@ const lineIterator = async function * (resultPromise, streamName) {
 };
 
 // Merge two async iterators into one
-const combineAsyncIterators = async function * (...iterators) {
+export const combineAsyncIterators = async function * (...iterators) {
 	try {
 		let promises = [];
 		while (iterators.length > 0) {
