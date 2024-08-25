@@ -25,6 +25,10 @@ const arrayFromAsync = async asyncIterable => {
 
 const testString = 'test';
 const secondTestString = 'secondTest';
+const testUpperCase = testString.toUpperCase();
+const testDoubleUpperCase = `${testUpperCase}${testUpperCase}`;
+
+const getPipeSize = command => command.split(' | ').length;
 
 const nodeHanging = ['node'];
 const nodePrint = bodyString => ['node', ['-p', bodyString]];
@@ -33,6 +37,15 @@ const nodePrintStdout = nodeEval(`console.log("${testString}")`);
 const nodePrintStderr = nodeEval(`console.error("${testString}")`);
 const nodePrintBoth = nodeEval(`console.log("${testString}");
 console.error("${secondTestString}");`);
+const nodePrintFail = nodeEval(`console.log("${testString}");
+process.exit(2);`);
+const nodePrintSleep = nodeEval(`setTimeout(() => {
+	console.log("${testString}");
+}, 1e2);`);
+const nodePrintSleepFail = nodeEval(`setTimeout(() => {
+	console.log("${testString}");
+	process.exit(2);
+}, 1e2);`);
 const nodePrintArgv0 = nodePrint('process.argv0');
 const nodePrintNoNewline = output => nodeEval(`process.stdout.write("${output.replaceAll('\n', '\\n').replaceAll('\r', '\\r')}")`);
 const nodePassThrough = nodeEval('process.stdin.pipe(process.stdout)');
@@ -43,11 +56,29 @@ const nodePassThroughPrintFail = nodeEval(`process.stdin.once("data", (chunk) =>
 	process.exit(2);
 });
 console.log("${testString}");`);
+const nodeToUpperCase = nodeEval(`process.stdin.on("data", chunk => {
+	console.log(chunk.toString().trim().toUpperCase());
+});`);
+const nodeToUpperCaseStderr = nodeEval(`process.stdin.on("data", chunk => {
+	console.error(chunk.toString().trim().toUpperCase());
+});`);
+const nodeToUpperCaseFail = nodeEval(`process.stdin.on("data", chunk => {
+	console.log(chunk.toString().trim().toUpperCase());
+	process.exit(2);
+});`);
+const nodeDouble = nodeEval(`process.stdin.on("data", chunk => {
+	console.log(chunk.toString().trim() + chunk.toString().trim());
+});`);
+const nodeDoubleFail = nodeEval(`process.stdin.on("data", chunk => {
+	console.log(chunk.toString().trim() + chunk.toString().trim());
+	process.exit(2);
+});`);
 const localBinary = ['ava', ['--version']];
 const nonExistentCommand = 'non-existent-command';
 
 const commandEvalFailStart = 'node -e';
 const messageEvalFailStart = `Command failed: ${commandEvalFailStart}`;
+const messageExitEvalFailStart = `Command failed with exit code 2: ${commandEvalFailStart}`;
 
 const VERSION_REGEXP = /^\d+\.\d+\.\d+$/;
 
@@ -1168,4 +1199,255 @@ test.serial('Keeps Node version', async t => {
 	t.not(nodePath, process.execPath);
 	const {stdout} = await nanoSpawn(nodePath, ['node-version.js'], {cwd: FIXTURES_URL});
 	t.is(stdout, `v${TEST_NODE_VERSION}`);
+});
+
+test('.pipe() success', async t => {
+	const {stdout, command, durationMs} = await nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCase);
+	t.is(stdout, testUpperCase);
+	t.is(getPipeSize(command), 2);
+	t.true(durationMs > 0);
+});
+
+test('.pipe() source fails', async t => {
+	const {exitCode, stdout, command, durationMs} = await t.throwsAsync(nanoSpawn(...nodePrintFail)
+		.pipe(...nodeToUpperCase));
+	t.is(exitCode, 2);
+	t.is(stdout, testString);
+	t.is(getPipeSize(command), 1);
+	t.true(durationMs > 0);
+});
+
+test('.pipe() source fails due to child_process invalid option', async t => {
+	const {exitCode, cause, command, durationMs} = await t.throwsAsync(nanoSpawn(...nodePrintStdout, {detached: 'true'})
+		.pipe(...nodeToUpperCase));
+	t.is(exitCode, undefined);
+	t.true(cause.message.includes('options.detached'));
+	t.is(getPipeSize(command), 1);
+	t.true(durationMs > 0);
+});
+
+test('.pipe() source fails due to stream error', async t => {
+	const first = nanoSpawn(...nodePrintStdout);
+	const second = first.pipe(...nodeToUpperCase);
+	const error = new Error(testString);
+	const subprocess = await first.nodeChildProcess;
+	subprocess.stdout.destroy(error);
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(second);
+	t.is(exitCode, undefined);
+	t.is(signalName, undefined);
+	t.true(message.startsWith(messageEvalFailStart));
+	t.is(cause, error);
+});
+
+test('.pipe() destination fails', async t => {
+	const {exitCode, stdout, command, durationMs} = await t.throwsAsync(nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCaseFail));
+	t.is(exitCode, 2);
+	t.is(stdout, testUpperCase);
+	t.is(getPipeSize(command), 2);
+	t.true(durationMs > 0);
+});
+
+test('.pipe() destination fails due to child_process invalid option', async t => {
+	const {exitCode, cause, command, durationMs} = await t.throwsAsync(nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCase, {detached: 'true'}));
+	t.is(exitCode, undefined);
+	t.true(cause.message.includes('options.detached'));
+	t.is(getPipeSize(command), 2);
+	t.true(durationMs > 0);
+});
+
+test('.pipe() destination fails due to stream error', async t => {
+	const first = nanoSpawn(...nodePrintStdout);
+	const second = first.pipe(...nodeToUpperCase);
+	const error = new Error(testString);
+	const subprocess = await second.nodeChildProcess;
+	subprocess.stdin.destroy(error);
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(second);
+	t.is(exitCode, undefined);
+	t.is(signalName, undefined);
+	t.true(message.startsWith(messageEvalFailStart));
+	t.is(cause, error);
+});
+
+test('.pipe() source and destination fail', async t => {
+	const {exitCode, stdout, command, durationMs} = await t.throwsAsync(nanoSpawn(...nodePrintFail)
+		.pipe(...nodeToUpperCaseFail));
+	t.is(exitCode, 2);
+	t.is(stdout, testString);
+	t.is(getPipeSize(command), 1);
+	t.true(durationMs > 0);
+});
+
+test('.pipe().pipe() success', async t => {
+	const first = nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCase);
+	const secondResult = await first.pipe(...nodeDouble);
+	const firstResult = await first;
+	t.is(firstResult.stdout, testUpperCase);
+	t.is(secondResult.stdout, testDoubleUpperCase);
+	t.is(getPipeSize(firstResult.command), 2);
+	t.is(getPipeSize(secondResult.command), 3);
+	t.true(firstResult.durationMs > 0);
+	t.true(secondResult.durationMs > firstResult.durationMs);
+});
+
+test('.pipe().pipe() first source fail', async t => {
+	const first = nanoSpawn(...nodePrintFail)
+		.pipe(...nodeToUpperCase);
+	const secondResult = await t.throwsAsync(first.pipe(...nodeDouble));
+	const firstResult = await t.throwsAsync(first);
+	t.is(firstResult, secondResult);
+	t.is(firstResult.stdout, testString);
+	t.is(getPipeSize(firstResult.command), 1);
+	t.true(firstResult.durationMs > 0);
+});
+
+test('.pipe().pipe() second source fail', async t => {
+	const first = nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCaseFail);
+	const secondResult = await t.throwsAsync(first.pipe(...nodeDouble));
+	const firstResult = await t.throwsAsync(first);
+	t.is(firstResult, secondResult);
+	t.is(firstResult.stdout, testUpperCase);
+	t.is(getPipeSize(firstResult.command), 2);
+	t.true(firstResult.durationMs > 0);
+});
+
+test('.pipe().pipe() destination fail', async t => {
+	const first = nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCase);
+	const secondResult = await t.throwsAsync(first.pipe(...nodeDoubleFail));
+	const firstResult = await first;
+	t.not(firstResult, secondResult);
+	t.is(firstResult.stdout, testUpperCase);
+	t.is(secondResult.stdout, testDoubleUpperCase);
+	t.is(getPipeSize(firstResult.command), 2);
+	t.is(getPipeSize(secondResult.command), 3);
+	t.true(firstResult.durationMs > 0);
+	t.true(secondResult.durationMs > 0);
+});
+
+test('.pipe().pipe() all fail', async t => {
+	const first = nanoSpawn(...nodePrintFail)
+		.pipe(...nodeToUpperCaseFail);
+	const secondResult = await t.throwsAsync(first.pipe(...nodeDoubleFail));
+	const firstResult = await t.throwsAsync(first);
+	t.is(firstResult, secondResult);
+	t.is(firstResult.stdout, testString);
+	t.is(getPipeSize(firstResult.command), 1);
+	t.true(firstResult.durationMs > 0);
+});
+
+// Cannot guarantee that `cat` exists on Windows
+if (!isWindows) {
+	test('.pipe() without arguments', async t => {
+		const {stdout} = await nanoSpawn(...nodePrintStdout)
+			.pipe('cat');
+		t.is(stdout, testString);
+	});
+}
+
+test('.pipe() with options', async t => {
+	const argv0 = 'Foo';
+	const {stdout} = await nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeEval(`process.stdin.on("data", chunk => {
+				console.log(chunk.toString().trim() + process.argv0);
+			});`), {argv0});
+	t.is(stdout, `${testString}${argv0}`);
+});
+
+test.serial('.pipe() which does not read stdin, source ends first', async t => {
+	const {stdout} = await nanoSpawn(...nodePrintStdout)
+		.pipe(...nodePrintSleep);
+	t.is(stdout, testString);
+});
+
+test.serial('.pipe() which does not read stdin, source fails first', async t => {
+	const {stdout} = await t.throwsAsync(nanoSpawn(...nodePrintFail)
+		.pipe(...nodePrintSleep));
+	t.is(stdout, testString);
+});
+
+test.serial('.pipe() which does not read stdin, source ends last', async t => {
+	const {stdout} = await nanoSpawn(...nodePrintSleep)
+		.pipe(...nodePrintStdout);
+	t.is(stdout, testString);
+});
+
+test.serial('.pipe() which does not read stdin, source fails last', async t => {
+	const {stdout} = await t.throwsAsync(nanoSpawn(...nodePrintStdout)
+		.pipe(...nodePrintSleepFail));
+	t.is(stdout, testString);
+});
+
+test('.pipe() which has hanging stdin', async t => {
+	const {signalName, command, stdout} = await t.throwsAsync(nanoSpawn('node', {timeout: 1e3})
+		.pipe(...nodePassThrough));
+	t.is(signalName, 'SIGTERM');
+	t.is(command, 'node');
+	t.is(stdout, '');
+});
+
+test('.pipe() with stdin "ignore"', async t => {
+	const {stdout} = await nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCase, {stdin: 'ignore'});
+	t.is(stdout, testUpperCase);
+});
+
+test('.pipe() with stdout "ignore"', async t => {
+	await t.throwsAsync(
+		nanoSpawn(...nodePrintStdout, {stdout: 'ignore'})
+			.pipe(...nodeToUpperCase),
+		{message: 'The "stdout" option cannot be combined with ".pipe()".'});
+});
+
+test('.pipe() + stdout/stderr iteration', async t => {
+	const lines = await arrayFromAsync(nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCase));
+	t.deepEqual(lines, [testUpperCase]);
+});
+
+test('.pipe() + stdout iteration', async t => {
+	const lines = await arrayFromAsync(nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCase).stdout);
+	t.deepEqual(lines, [testUpperCase]);
+});
+
+test('.pipe() + stderr iteration', async t => {
+	const lines = await arrayFromAsync(nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCaseStderr).stderr);
+	t.deepEqual(lines, [testUpperCase]);
+});
+
+test('.pipe() + stdout iteration, source fail', async t => {
+	const {exitCode, stdout, message, command, durationMs} = await t.throwsAsync(arrayFromAsync(nanoSpawn(...nodePrintFail)
+		.pipe(...nodeToUpperCase).stdout));
+	t.is(exitCode, 2);
+	t.is(stdout, testString);
+	t.true(message.startsWith(messageExitEvalFailStart));
+	t.true(command.startsWith(commandEvalFailStart));
+	t.true(durationMs > 0);
+});
+
+test('.pipe() + stdout iteration, destination fail', async t => {
+	const {exitCode, stdout, message, command, durationMs} = await t.throwsAsync(arrayFromAsync(nanoSpawn(...nodePrintStdout)
+		.pipe(...nodeToUpperCaseFail).stdout));
+	t.is(exitCode, 2);
+	t.is(stdout, testUpperCase);
+	t.true(message.startsWith(messageExitEvalFailStart));
+	t.true(command.startsWith(commandEvalFailStart));
+	t.true(durationMs > 0);
+});
+
+test('.pipe() with EPIPE', async t => {
+	const lines = await arrayFromAsync(nanoSpawn(...nodeEval(`setInterval(() => {
+	console.log("${testString}");
+}, 0);
+process.stdout.on("error", () => {
+	process.exit();
+});`))
+		.pipe('head', ['-n', '2']));
+	t.deepEqual(lines, [testString, testString]);
 });

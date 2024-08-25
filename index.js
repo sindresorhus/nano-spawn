@@ -9,5 +9,5 @@ export default function nanoSpawn(file, commandArguments, options) {
 		command: getCommand(file, commandArguments),
 	};
 	const resultPromise = spawnProcess(file, commandArguments, options, context);
-	return addPromiseMethods(resultPromise);
+	return addPromiseMethods(resultPromise, context);
 }
