@@ -1,24 +1,34 @@
-export async function * combineAsyncIterators(iterator1, iterator2) {
-	while (true) {
-		// eslint-disable-next-line no-await-in-loop
-		const [result1, result2] = await Promise.all([
-			iterator1.next(),
-			iterator2.next(),
-		]);
+// Merge two async iterators into one
+export async function * combineAsyncIterators(...iterators) {
+	try {
+		let promises = [];
+		while (iterators.length > 0) {
+			promises = iterators.map((iterator, index) => promises[index] ?? getNext(iterator));
+			// eslint-disable-next-line no-await-in-loop
+			const [{value, done}, index] = await Promise.race(promises
+				.map((promise, index) => Promise.all([promise, index])));
 
-		if (result1.done && result2.done) {
-			break;
-		}
+			const [iterator] = iterators.splice(index, 1);
+			promises.splice(index, 1);
 
-		if (!result1.done) {
-			yield result1.value;
+			if (!done) {
+				iterators.push(iterator);
+				yield value;
+			}
 		}
-
-		if (!result2.done) {
-			yield result2.value;
-		}
+	} finally {
+		await Promise.all(iterators.map(iterator => iterator.return?.()));
 	}
 }
+
+const getNext = async iterator => {
+	try {
+		return await iterator.next();
+	} catch (error) {
+		await iterator.throw?.(error);
+		throw error;
+	}
+};
 
 export async function * lineIterator(stream, resultPromise) {
 	if (!stream) {
