@@ -24,40 +24,63 @@ const arrayFromAsync = async asyncIterable => {
 };
 
 const testString = 'test';
+const secondTestString = 'secondTest';
+
+const nodeHanging = ['node'];
+const nodePrint = bodyString => ['node', ['-p', bodyString]];
+const nodeEval = bodyString => ['node', ['-e', bodyString]];
+const nodePrintStdout = nodeEval(`console.log("${testString}")`);
+const nodePrintStderr = nodeEval(`console.error("${testString}")`);
+const nodePrintBoth = nodeEval(`console.log("${testString}");
+console.error("${secondTestString}");`);
+const nodePrintArgv0 = nodePrint('process.argv0');
+const nodePrintNoNewline = output => nodeEval(`process.stdout.write("${output.replaceAll('\n', '\\n').replaceAll('\r', '\\r')}")`);
+const nodePassThrough = nodeEval('process.stdin.pipe(process.stdout)');
+const nodePassThroughPrint = nodeEval(`process.stdin.pipe(process.stdout);
+console.log("${testString}");`);
+const nodePassThroughPrintFail = nodeEval(`process.stdin.once("data", (chunk) => {
+	console.log(chunk.toString());
+	process.exit(2);
+});
+console.log("${testString}");`);
+const localBinary = ['ava', ['--version']];
+const nonExistentCommand = 'non-existent-command';
+
+const VERSION_REGEXP = /^\d+\.\d+\.\d+$/;
 
 test('Can pass options.argv0', async t => {
-	const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString});
+	const {stdout} = await nanoSpawn(...nodePrintArgv0, {argv0: testString});
 	t.is(stdout, testString);
 });
 
 test('Can pass options.argv0, shell', async t => {
-	const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, shell: true});
+	const {stdout} = await nanoSpawn(...nodePrintArgv0, {argv0: testString, shell: true});
 	t.is(stdout, process.execPath);
 });
 
 test('Can pass options.stdin', async t => {
-	const promise = nanoSpawn('node', ['--version'], {stdin: 'ignore'});
+	const promise = nanoSpawn(...nodePrintStdout, {stdin: 'ignore'});
 	const {stdin} = await promise.nodeChildProcess;
 	t.is(stdin, null);
 	await promise;
 });
 
 test('Can pass options.stdout', async t => {
-	const promise = nanoSpawn('node', ['--version'], {stdout: 'ignore'});
+	const promise = nanoSpawn(...nodePrintStdout, {stdout: 'ignore'});
 	const {stdout} = await promise.nodeChildProcess;
 	t.is(stdout, null);
 	await promise;
 });
 
 test('Can pass options.stderr', async t => {
-	const promise = nanoSpawn('node', ['--version'], {stderr: 'ignore'});
+	const promise = nanoSpawn(...nodePrintStdout, {stderr: 'ignore'});
 	const {stderr} = await promise.nodeChildProcess;
 	t.is(stderr, null);
 	await promise;
 });
 
 test('Can pass options.stdio array', async t => {
-	const promise = nanoSpawn('node', ['--version'], {stdio: ['ignore', 'pipe', 'pipe', 'pipe']});
+	const promise = nanoSpawn(...nodePrintStdout, {stdio: ['ignore', 'pipe', 'pipe', 'pipe']});
 	const {stdin, stdout, stderr, stdio} = await promise.nodeChildProcess;
 	t.is(stdin, null);
 	t.not(stdout, null);
@@ -67,7 +90,7 @@ test('Can pass options.stdio array', async t => {
 });
 
 test('Can pass options.stdio string', async t => {
-	const promise = nanoSpawn('node', ['--version'], {stdio: 'ignore'});
+	const promise = nanoSpawn(...nodePrintStdout, {stdio: 'ignore'});
 	const {stdin, stdout, stderr, stdio} = await promise.nodeChildProcess;
 	t.is(stdin, null);
 	t.is(stdout, null);
@@ -77,26 +100,26 @@ test('Can pass options.stdio string', async t => {
 });
 
 test('options.stdio array has priority over options.stdout', async t => {
-	const promise = nanoSpawn('node', ['--version'], {stdio: ['pipe', 'pipe', 'pipe'], stdout: 'ignore'});
+	const promise = nanoSpawn(...nodePrintStdout, {stdio: ['pipe', 'pipe', 'pipe'], stdout: 'ignore'});
 	const {stdout} = await promise.nodeChildProcess;
 	t.not(stdout, null);
 	await promise;
 });
 
 test('options.stdio string has priority over options.stdout', async t => {
-	const promise = nanoSpawn('node', ['--version'], {stdio: 'pipe', stdout: 'ignore'});
+	const promise = nanoSpawn(...nodePrintStdout, {stdio: 'pipe', stdout: 'ignore'});
 	const {stdout} = await promise.nodeChildProcess;
 	t.not(stdout, null);
 	await promise;
 });
 
 test('options.stdin can be {string: string}', async t => {
-	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout)'], {stdin: {string: testString}});
+	const {stdout} = await nanoSpawn(...nodePassThrough, {stdin: {string: testString}});
 	t.is(stdout, testString);
 });
 
 test('options.stdio[0] can be {string: string}', async t => {
-	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout)'], {stdio: [{string: testString}, 'pipe', 'pipe']});
+	const {stdout} = await nanoSpawn(...nodePassThrough, {stdio: [{string: testString}, 'pipe', 'pipe']});
 	t.is(stdout, testString);
 });
 
@@ -110,19 +133,19 @@ test.serial('options.env augments process.env', async t => {
 });
 
 test('Can pass options object without any arguments', async t => {
-	const {exitCode, signalName} = await t.throwsAsync(nanoSpawn('node', {timeout: 1}));
+	const {exitCode, signalName} = await t.throwsAsync(nanoSpawn(...nodeHanging, {timeout: 1}));
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
 });
 
 test('result.exitCode|signalName on success', async t => {
-	const {exitCode, signalName} = await nanoSpawn('node', ['--version']);
+	const {exitCode, signalName} = await nanoSpawn(...nodePrintStdout);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
 });
 
 test('Error on non-0 exit code', async t => {
-	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('node', ['-e', 'process.exit(2)']));
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn(...nodeEval('process.exit(2)')));
 	t.is(exitCode, 2);
 	t.is(signalName, undefined);
 	t.is(message, 'Command failed with exit code 2: node -e \'process.exit(2)\'');
@@ -130,7 +153,7 @@ test('Error on non-0 exit code', async t => {
 });
 
 test('Error on signal termination', async t => {
-	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('node', {timeout: 1}));
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn(...nodeHanging, {timeout: 1}));
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
 	t.is(message, 'Command was terminated with SIGTERM: node');
@@ -138,16 +161,16 @@ test('Error on signal termination', async t => {
 });
 
 test('Error on invalid child_process options', async t => {
-	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('node', ['--version'], {detached: 'true'}));
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn(...nodePrintStdout, {detached: 'true'}));
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
-	t.is(message, 'Command failed: node --version');
+	t.true(message.startsWith('Command failed: node -e'));
 	t.true(cause.message.includes('options.detached'));
 	t.false(cause.message.includes('Command'));
 });
 
 test('Error on "error" event before spawn', async t => {
-	const {stderr, cause} = await t.throwsAsync(nanoSpawn('non-existent-command'));
+	const {stderr, cause} = await t.throwsAsync(nanoSpawn(nonExistentCommand));
 
 	if (isWindows) {
 		t.true(stderr.includes('not recognized as an internal or external command'));
@@ -158,7 +181,7 @@ test('Error on "error" event before spawn', async t => {
 
 test('Error on "error" event during spawn', async t => {
 	const error = new Error(testString);
-	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn('node', {signal: AbortSignal.abort(error)}));
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn(...nodeHanging, {signal: AbortSignal.abort(error)}));
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
 	t.is(message, 'Command was terminated with SIGTERM: node');
@@ -167,7 +190,7 @@ test('Error on "error" event during spawn', async t => {
 
 test('Error on "error" event during spawn, with iteration', async t => {
 	const error = new Error(testString);
-	const promise = nanoSpawn('node', {signal: AbortSignal.abort(error)});
+	const promise = nanoSpawn(...nodeHanging, {signal: AbortSignal.abort(error)});
 	const {exitCode, signalName, message, cause} = await t.throwsAsync(arrayFromAsync(promise.stdout));
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
@@ -181,7 +204,7 @@ if (isLinux) {
 	test('Error on "error" event after spawn', async t => {
 		const error = new Error(testString);
 		const controller = new AbortController();
-		const promise = nanoSpawn('node', {signal: controller.signal});
+		const promise = nanoSpawn(...nodeHanging, {signal: controller.signal});
 		await promise.nodeChildProcess;
 		controller.abort(error);
 		const {exitCode, signalName, message, cause} = await t.throwsAsync(promise);
@@ -194,23 +217,22 @@ if (isLinux) {
 }
 
 test('promise.stdout can be iterated', async t => {
-	const promise = nanoSpawn('node', ['-e', 'console.log(".")']);
+	const promise = nanoSpawn(...nodePrintStdout);
 	const lines = await arrayFromAsync(promise.stdout);
-	t.deepEqual(lines, ['.']);
+	t.deepEqual(lines, [testString]);
 });
 
 test('promise.stderr can be iterated', async t => {
-	const promise = nanoSpawn('node', ['-e', 'console.error(".")']);
+	const promise = nanoSpawn(...nodePrintStderr);
 	const lines = await arrayFromAsync(promise.stderr);
-	t.deepEqual(lines, ['.']);
+	t.deepEqual(lines, [testString]);
 });
 
 test('promise[Symbol.asyncIterator] can be iterated', async t => {
-	const promise = nanoSpawn('node', ['-e', `
-console.log("a");
+	const promise = nanoSpawn(...nodeEval(`console.log("a");
 console.log("b");
 console.error("c");
-console.error("d");`]);
+console.error("d");`));
 
 	const lines = await arrayFromAsync(promise);
 	t.deepEqual(lines, ['a', 'b', 'c', 'd']);
@@ -241,72 +263,74 @@ for (let index = 0; index < ${length}; index += 1) {
 });
 
 test('result.stdout is set', async t => {
-	const {stdout, stderr} = await nanoSpawn('node', ['-e', 'console.log(".")']);
-	t.is(stdout, '.');
+	const {stdout, stderr} = await nanoSpawn(...nodePrintStdout);
+	t.is(stdout, testString);
 	t.is(stderr, '');
 });
 
 test('result.stderr is set', async t => {
-	const {stdout, stderr} = await nanoSpawn('node', ['-e', 'console.error(".")']);
+	const {stdout, stderr} = await nanoSpawn(...nodePrintStderr);
 	t.is(stdout, '');
-	t.is(stderr, '.');
+	t.is(stderr, testString);
 });
 
 test('error.stdout is set', async t => {
-	const {exitCode, stdout, stderr} = await t.throwsAsync(nanoSpawn('node', ['-e', 'console.log("."); process.exit(2);']));
+	const {exitCode, stdout, stderr} = await t.throwsAsync(nanoSpawn(...nodeEval(`console.log("${testString}");
+process.exit(2);`)));
 	t.is(exitCode, 2);
-	t.is(stdout, '.');
+	t.is(stdout, testString);
 	t.is(stderr, '');
 });
 
 test('error.stderr is set', async t => {
-	const {exitCode, stdout, stderr} = await t.throwsAsync(nanoSpawn('node', ['-e', 'console.error("."); process.exit(2);']));
+	const {exitCode, stdout, stderr} = await t.throwsAsync(nanoSpawn(...nodeEval(`console.error("${testString}");
+process.exit(2);`)));
 	t.is(exitCode, 2);
 	t.is(stdout, '');
-	t.is(stderr, '.');
+	t.is(stderr, testString);
 });
 
 test('promise.stdout has no iterations if options.stdout "ignore"', async t => {
-	const promise = nanoSpawn('node', ['-e', 'console.log("."); console.error(".");'], {stdout: 'ignore'});
+	const promise = nanoSpawn(...nodePrintBoth, {stdout: 'ignore'});
 	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(promise.stdout), arrayFromAsync(promise.stderr)]);
 	t.deepEqual(stdoutLines, []);
-	t.deepEqual(stderrLines, ['.']);
+	t.deepEqual(stderrLines, [secondTestString]);
 });
 
 test('promise.stderr has no iterations if options.stderr "ignore"', async t => {
-	const promise = nanoSpawn('node', ['-e', 'console.log("."); console.error(".");'], {stderr: 'ignore'});
+	const promise = nanoSpawn(...nodePrintBoth, {stderr: 'ignore'});
 	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(promise.stdout), arrayFromAsync(promise.stderr)]);
-	t.deepEqual(stdoutLines, ['.']);
+	t.deepEqual(stdoutLines, [testString]);
 	t.deepEqual(stderrLines, []);
 });
 
 test('promise[Symbol.asyncIterator] has iterations if only options.stdout "ignore"', async t => {
-	const promise = nanoSpawn('node', ['-e', 'console.log("a"); console.error("b");'], {stdout: 'ignore'});
+	const promise = nanoSpawn(...nodePrintBoth, {stdout: 'ignore'});
 	const lines = await arrayFromAsync(promise);
-	t.deepEqual(lines, ['b']);
+	t.deepEqual(lines, [secondTestString]);
 });
 
 test('promise[Symbol.asyncIterator] has iterations if only options.stderr "ignore"', async t => {
-	const promise = nanoSpawn('node', ['-e', 'console.log("a"); console.error("b");'], {stderr: 'ignore'});
+	const promise = nanoSpawn(...nodePrintBoth, {stderr: 'ignore'});
 	const lines = await arrayFromAsync(promise);
-	t.deepEqual(lines, ['a']);
+	t.deepEqual(lines, [testString]);
 });
 
 test('promise[Symbol.asyncIterator] has no iterations if only options.stdout + options.stderr "ignore"', async t => {
-	const promise = nanoSpawn('node', ['-e', 'console.log("a"); console.error("b");'], {stdout: 'ignore', stderr: 'ignore'});
+	const promise = nanoSpawn(...nodePrintBoth, {stdout: 'ignore', stderr: 'ignore'});
 	const lines = await arrayFromAsync(promise);
 	t.deepEqual(lines, []);
 });
 
 test('result.stdout is an empty string if options.stdout "ignore"', async t => {
-	const {stdout, stderr} = await nanoSpawn('node', ['-e', 'console.log("."); console.error(".");'], {stdout: 'ignore'});
+	const {stdout, stderr} = await nanoSpawn(...nodePrintBoth, {stdout: 'ignore'});
 	t.is(stdout, '');
-	t.is(stderr, '.');
+	t.is(stderr, secondTestString);
 });
 
 test('result.stderr is an empty string if options.stderr "ignore"', async t => {
-	const {stdout, stderr} = await nanoSpawn('node', ['-e', 'console.log("."); console.error(".");'], {stderr: 'ignore'});
-	t.is(stdout, '.');
+	const {stdout, stderr} = await nanoSpawn(...nodePrintBoth, {stderr: 'ignore'});
+	t.is(stdout, testString);
 	t.is(stderr, '');
 });
 
@@ -322,68 +346,68 @@ process.stderr.write("c\\nd\\n");`]);
 });
 
 test('promise.stdout handles no newline at the end', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdout.write("a\\nb")']);
+	const promise = nanoSpawn(...nodePrintNoNewline('a\nb'));
 	const lines = await arrayFromAsync(promise.stdout);
 	t.deepEqual(lines, ['a', 'b']);
 });
 
 test('result.stdout handles no newline at the end', async t => {
-	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write("a\\nb")']);
+	const {stdout} = await nanoSpawn(...nodePrintNoNewline('a\nb'));
 	t.is(stdout, 'a\nb');
 });
 
 test('promise.stdout handles newline at the end', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdout.write("a\\nb\\n")']);
+	const promise = nanoSpawn(...nodePrintNoNewline('a\nb\n'));
 	const lines = await arrayFromAsync(promise.stdout);
 	t.deepEqual(lines, ['a', 'b']);
 });
 
 test('result.stdout handles newline at the end', async t => {
-	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write("a\\nb\\n")']);
+	const {stdout} = await nanoSpawn(...nodePrintNoNewline('a\nb\n'));
 	t.is(stdout, 'a\nb');
 });
 
 test('promise.stdout handles newline at the beginning', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdout.write("\\na\\nb")']);
+	const promise = nanoSpawn(...nodePrintNoNewline('\na\nb'));
 	const lines = await arrayFromAsync(promise.stdout);
 	t.deepEqual(lines, ['', 'a', 'b']);
 });
 
 test('result.stdout handles newline at the beginning', async t => {
-	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write("\\na\\nb")']);
+	const {stdout} = await nanoSpawn(...nodePrintNoNewline('\na\nb'));
 	t.is(stdout, '\na\nb');
 });
 
 test('promise.stdout handles 2 newlines at the end', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdout.write("a\\nb\\n\\n")']);
+	const promise = nanoSpawn(...nodePrintNoNewline('a\nb\n\n'));
 	const lines = await arrayFromAsync(promise.stdout);
 	t.deepEqual(lines, ['a', 'b', '']);
 });
 
 test('result.stdout handles 2 newlines at the end', async t => {
-	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write("a\\nb\\n\\n")']);
+	const {stdout} = await nanoSpawn(...nodePrintNoNewline('a\nb\n\n'));
 	t.is(stdout, 'a\nb\n');
 });
 
 test('promise.stdout handles Windows newlines', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdout.write("a\\r\\nb")']);
+	const promise = nanoSpawn(...nodePrintNoNewline('a\r\nb'));
 	const lines = await arrayFromAsync(promise.stdout);
 	t.deepEqual(lines, ['a', 'b']);
 });
 
 test('result.stdout handles Windows newlines', async t => {
-	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write("a\\r\\nb")']);
+	const {stdout} = await nanoSpawn(...nodePrintNoNewline('a\r\nb'));
 	t.is(stdout, 'a\r\nb');
 });
 
 test('promise.stdout handles Windows newline at the end', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdout.write("a\\r\\nb\\r\\n")']);
+	const promise = nanoSpawn(...nodePrintNoNewline('a\r\nb\r\n'));
 	const lines = await arrayFromAsync(promise.stdout);
 	t.deepEqual(lines, ['a', 'b']);
 });
 
 test('result.stdout handles Windows newline at the end', async t => {
-	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write("a\\r\\nb\\r\\n")']);
+	const {stdout} = await nanoSpawn(...nodePrintNoNewline('a\r\nb\r\n'));
 	t.is(stdout, 'a\r\nb');
 });
 
@@ -400,21 +424,21 @@ const writeMultibyte = async promise => {
 };
 
 test.serial('promise.stdout works with multibyte sequences', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout)']);
+	const promise = nanoSpawn(...nodePassThrough);
 	writeMultibyte(promise);
 	const lines = await arrayFromAsync(promise.stdout);
 	t.deepEqual(lines, [multibyteString]);
 });
 
 test.serial('result.stdout works with multibyte sequences', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout)']);
+	const promise = nanoSpawn(...nodePassThrough);
 	writeMultibyte(promise);
 	const {stdout} = await promise;
 	t.is(stdout, multibyteString);
 });
 
 test('Handles promise.stdout error', async t => {
-	const promise = nanoSpawn('node', ['--version']);
+	const promise = nanoSpawn(...nodePrintStdout);
 	const error = new Error(testString);
 	const {stdout} = await promise.nodeChildProcess;
 	stdout.emit('error', error);
@@ -423,7 +447,7 @@ test('Handles promise.stdout error', async t => {
 });
 
 test('Handles promise.stderr error', async t => {
-	const promise = nanoSpawn('node', ['--version']);
+	const promise = nanoSpawn(...nodePrintStdout);
 	const error = new Error(testString);
 	const {stderr} = await promise.nodeChildProcess;
 	stderr.emit('error', error);
@@ -432,7 +456,7 @@ test('Handles promise.stderr error', async t => {
 });
 
 test('Handles promise.stdout error in promise[Symbol.asyncIterator]', async t => {
-	const promise = nanoSpawn('node', ['--version']);
+	const promise = nanoSpawn(...nodePrintStdout);
 	const error = new Error(testString);
 	const {stdout} = await promise.nodeChildProcess;
 	stdout.emit('error', error);
@@ -441,7 +465,7 @@ test('Handles promise.stdout error in promise[Symbol.asyncIterator]', async t =>
 });
 
 test('Handles promise.stderr error in promise[Symbol.asyncIterator]', async t => {
-	const promise = nanoSpawn('node', ['--version']);
+	const promise = nanoSpawn(...nodePrintStdout);
 	const error = new Error(testString);
 	const {stderr} = await promise.nodeChildProcess;
 	stderr.emit('error', error);
@@ -450,7 +474,7 @@ test('Handles promise.stderr error in promise[Symbol.asyncIterator]', async t =>
 });
 
 test('Handles result.stdout error', async t => {
-	const promise = nanoSpawn('node', ['--version']);
+	const promise = nanoSpawn(...nodePrintStdout);
 	const error = new Error(testString);
 	const {stdout} = await promise.nodeChildProcess;
 	stdout.emit('error', error);
@@ -459,7 +483,7 @@ test('Handles result.stdout error', async t => {
 });
 
 test('Handles result.stderr error', async t => {
-	const promise = nanoSpawn('node', ['--version']);
+	const promise = nanoSpawn(...nodePrintStdout);
 	const error = new Error(testString);
 	const {stderr} = await promise.nodeChildProcess;
 	stderr.emit('error', error);
@@ -468,17 +492,17 @@ test('Handles result.stderr error', async t => {
 });
 
 test.serial('promise.stdout iteration break waits for the subprocess success', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout); console.log("a");']);
+	const promise = nanoSpawn(...nodePassThroughPrint);
 	let done = false;
 
 	// eslint-disable-next-line no-unreachable-loop
 	for await (const line of promise.stdout) {
-		t.is(line, 'a');
+		t.is(line, testString);
 		globalThis.setTimeout(async () => {
 			const {stdin, stdout} = await promise.nodeChildProcess;
 			t.true(stdout.readable);
 			t.true(stdin.writable);
-			stdin.end('b');
+			stdin.end(secondTestString);
 			done = true;
 		}, 1e2);
 		break;
@@ -486,21 +510,21 @@ test.serial('promise.stdout iteration break waits for the subprocess success', a
 
 	t.true(done);
 	const {stdout} = await promise;
-	t.is(stdout, 'a\nb');
+	t.is(stdout, `${testString}\n${secondTestString}`);
 });
 
 test.serial('promise[Symbol.asyncIterator] iteration break waits for the subprocess success', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout); console.log("a");']);
+	const promise = nanoSpawn(...nodePassThroughPrint);
 	let done = false;
 
 	// eslint-disable-next-line no-unreachable-loop
 	for await (const line of promise) {
-		t.is(line, 'a');
+		t.is(line, testString);
 		globalThis.setTimeout(async () => {
 			const {stdin, stdout} = await promise.nodeChildProcess;
 			t.true(stdout.readable);
 			t.true(stdin.writable);
-			stdin.end('b');
+			stdin.end(secondTestString);
 			done = true;
 		}, 1e2);
 		break;
@@ -508,23 +532,23 @@ test.serial('promise[Symbol.asyncIterator] iteration break waits for the subproc
 
 	t.true(done);
 	const {stdout} = await promise;
-	t.is(stdout, 'a\nb');
+	t.is(stdout, `${testString}\n${secondTestString}`);
 });
 
 test.serial('promise.stdout iteration exception waits for the subprocess success', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout); console.log("a");']);
+	const promise = nanoSpawn(...nodePassThroughPrint);
 	let done = false;
 
 	const cause = new Error(testString);
 	try {
 		// eslint-disable-next-line no-unreachable-loop
 		for await (const line of promise.stdout) {
-			t.is(line, 'a');
+			t.is(line, testString);
 			globalThis.setTimeout(async () => {
 				const {stdin, stdout} = await promise.nodeChildProcess;
 				t.true(stdout.readable);
 				t.true(stdin.writable);
-				stdin.end('b');
+				stdin.end(secondTestString);
 				done = true;
 			}, 1e2);
 			throw cause;
@@ -535,23 +559,23 @@ test.serial('promise.stdout iteration exception waits for the subprocess success
 
 	t.true(done);
 	const {stdout} = await promise;
-	t.is(stdout, 'a\nb');
+	t.is(stdout, `${testString}\n${secondTestString}`);
 });
 
 test.serial('promise[Symbol.asyncIterator] iteration exception waits for the subprocess success', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout); console.log("a");']);
+	const promise = nanoSpawn(...nodePassThroughPrint);
 	let done = false;
 
 	const cause = new Error(testString);
 	try {
 		// eslint-disable-next-line no-unreachable-loop
 		for await (const line of promise) {
-			t.is(line, 'a');
+			t.is(line, testString);
 			globalThis.setTimeout(async () => {
 				const {stdin, stdout} = await promise.nodeChildProcess;
 				t.true(stdout.readable);
 				t.true(stdin.writable);
-				stdin.end('b');
+				stdin.end(secondTestString);
 				done = true;
 			}, 1e2);
 			throw cause;
@@ -562,23 +586,23 @@ test.serial('promise[Symbol.asyncIterator] iteration exception waits for the sub
 
 	t.true(done);
 	const {stdout} = await promise;
-	t.is(stdout, 'a\nb');
+	t.is(stdout, `${testString}\n${secondTestString}`);
 });
 
 test.serial('promise.stdout iteration break waits for the subprocess failure', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdin.once("data", (chunk) => {console.log(chunk.toString()); process.exit(2)}); console.log("a");']);
+	const promise = nanoSpawn(...nodePassThroughPrintFail);
 	let done = false;
 
 	let cause;
 	try {
 		// eslint-disable-next-line no-unreachable-loop
 		for await (const line of promise.stdout) {
-			t.is(line, 'a');
+			t.is(line, testString);
 			globalThis.setTimeout(async () => {
 				const {stdin, stdout} = await promise.nodeChildProcess;
 				t.true(stdout.readable);
 				t.true(stdin.writable);
-				stdin.end('b');
+				stdin.end(secondTestString);
 				done = true;
 			}, 1e2);
 			break;
@@ -590,23 +614,23 @@ test.serial('promise.stdout iteration break waits for the subprocess failure', a
 	t.true(done);
 	const error = await t.throwsAsync(promise);
 	t.is(error, cause);
-	t.is(error.stdout, 'a\nb');
+	t.is(error.stdout, `${testString}\n${secondTestString}`);
 });
 
 test.serial('promise[Symbol.asyncIterator] iteration break waits for the subprocess failure', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdin.once("data", (chunk) => {console.log(chunk.toString()); process.exit(2)}); console.log("a");']);
+	const promise = nanoSpawn(...nodePassThroughPrintFail);
 	let done = false;
 
 	let cause;
 	try {
 		// eslint-disable-next-line no-unreachable-loop
 		for await (const line of promise) {
-			t.is(line, 'a');
+			t.is(line, testString);
 			globalThis.setTimeout(async () => {
 				const {stdin, stdout} = await promise.nodeChildProcess;
 				t.true(stdout.readable);
 				t.true(stdin.writable);
-				stdin.end('b');
+				stdin.end(secondTestString);
 				done = true;
 			}, 1e2);
 			break;
@@ -618,23 +642,23 @@ test.serial('promise[Symbol.asyncIterator] iteration break waits for the subproc
 	t.true(done);
 	const error = await t.throwsAsync(promise);
 	t.is(error, cause);
-	t.is(error.stdout, 'a\nb');
+	t.is(error.stdout, `${testString}\n${secondTestString}`);
 });
 
 test.serial('promise.stdout iteration exception waits for the subprocess failure', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdin.once("data", (chunk) => {console.log(chunk.toString()); process.exit(2)}); console.log("a");']);
+	const promise = nanoSpawn(...nodePassThroughPrintFail);
 	let done = false;
 
 	const cause = new Error(testString);
 	try {
 		// eslint-disable-next-line no-unreachable-loop
 		for await (const line of promise.stdout) {
-			t.is(line, 'a');
+			t.is(line, testString);
 			globalThis.setTimeout(async () => {
 				const {stdin, stdout} = await promise.nodeChildProcess;
 				t.true(stdout.readable);
 				t.true(stdin.writable);
-				stdin.end('b');
+				stdin.end(secondTestString);
 				done = true;
 			}, 1e2);
 			throw cause;
@@ -646,23 +670,23 @@ test.serial('promise.stdout iteration exception waits for the subprocess failure
 	t.true(done);
 	const error = await t.throwsAsync(promise);
 	t.not(error, cause);
-	t.is(error.stdout, 'a\nb');
+	t.is(error.stdout, `${testString}\n${secondTestString}`);
 });
 
 test.serial('promise[Symbol.asyncIterator] iteration exception waits for the subprocess failure', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdin.once("data", (chunk) => {console.log(chunk.toString()); process.exit(2)}); console.log("a");']);
+	const promise = nanoSpawn(...nodePassThroughPrintFail);
 	let done = false;
 
 	const cause = new Error(testString);
 	try {
 		// eslint-disable-next-line no-unreachable-loop
 		for await (const line of promise) {
-			t.is(line, 'a');
+			t.is(line, testString);
 			globalThis.setTimeout(async () => {
 				const {stdin, stdout} = await promise.nodeChildProcess;
 				t.true(stdout.readable);
 				t.true(stdin.writable);
-				stdin.end('b');
+				stdin.end(secondTestString);
 				done = true;
 			}, 1e2);
 			throw cause;
@@ -674,11 +698,11 @@ test.serial('promise[Symbol.asyncIterator] iteration exception waits for the sub
 	t.true(done);
 	const error = await t.throwsAsync(promise);
 	t.not(error, cause);
-	t.is(error.stdout, 'a\nb');
+	t.is(error.stdout, `${testString}\n${secondTestString}`);
 });
 
 test('Returns a promise', async t => {
-	const promise = nanoSpawn('node', ['--version']);
+	const promise = nanoSpawn(...nodePrintStdout);
 	t.false(Object.prototype.propertyIsEnumerable.call(promise, 'then'));
 	t.false(Object.hasOwn(promise, 'then'));
 	t.true(promise instanceof Promise);
@@ -686,7 +710,7 @@ test('Returns a promise', async t => {
 });
 
 test('promise.nodeChildProcess is set', async t => {
-	const promise = nanoSpawn('node');
+	const promise = nanoSpawn(...nodeHanging);
 	const nodeChildProcess = await promise.nodeChildProcess;
 	nodeChildProcess.kill();
 
@@ -700,31 +724,31 @@ test('result.command is defined', async t => {
 });
 
 test('result.command quotes spaces', async t => {
-	const {command, stdout} = await nanoSpawn('node', ['-p', '". ."']);
+	const {command, stdout} = await nanoSpawn(...nodePrint('". ."'));
 	t.is(command, 'node -p \'". ."\'');
 	t.is(stdout, '. .');
 });
 
 test('result.command quotes single quotes', async t => {
-	const {command, stdout} = await nanoSpawn('node', ['-p', '"\'"']);
+	const {command, stdout} = await nanoSpawn(...nodePrint('"\'"'));
 	t.is(command, 'node -p \'"\'\\\'\'"\'');
 	t.is(stdout, '\'');
 });
 
 test('result.command quotes unusual characters', async t => {
-	const {command, stdout} = await nanoSpawn('node', ['-p', '","']);
+	const {command, stdout} = await nanoSpawn(...nodePrint('","'));
 	t.is(command, 'node -p \'","\'');
 	t.is(stdout, ',');
 });
 
 test('result.command strips ANSI sequences', async t => {
-	const {command, stdout} = await nanoSpawn('node', ['-p', `"${red('.')}"`]);
-	t.is(command, 'node -p \'"."\'');
-	t.is(stdout, red('.'));
+	const {command, stdout} = await nanoSpawn(...nodePrint(`"${red(testString)}"`));
+	t.is(command, `node -p '"${testString}"'`);
+	t.is(stdout, red(testString));
 });
 
 test('result.durationMs is set', async t => {
-	const {durationMs} = await nanoSpawn('node', ['--version']);
+	const {durationMs} = await nanoSpawn(...nodePrintStdout);
 	t.true(Number.isFinite(durationMs));
 	t.true(durationMs > 0);
 });
@@ -747,12 +771,12 @@ if (isWindows) {
 	test('Can run .exe file, shell', testExe, true);
 
 	test('.exe does not use shell by default', async t => {
-		const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString});
+		const {stdout} = await nanoSpawn(...nodePrintArgv0, {argv0: testString});
 		t.is(stdout, testString);
 	});
 
 	test('.exe can use shell', async t => {
-		const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, shell: true});
+		const {stdout} = await nanoSpawn(...nodePrintArgv0, {argv0: testString, shell: true});
 		t.is(stdout, process.execPath);
 	});
 
@@ -778,17 +802,17 @@ if (isWindows) {
 	});
 
 	test('.exe detection with custom Path', async t => {
-		const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, env: {[pathKey()]: path.dirname(process.execPath)}});
+		const {stdout} = await nanoSpawn(...nodePrintArgv0, {argv0: testString, env: {[pathKey()]: path.dirname(process.execPath)}});
 		t.is(stdout, testString);
 	});
 
 	test('.exe detection with custom Path and leading ;', async t => {
-		const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, env: {[pathKey()]: `;${path.dirname(process.execPath)}`}});
+		const {stdout} = await nanoSpawn(...nodePrintArgv0, {argv0: testString, env: {[pathKey()]: `;${path.dirname(process.execPath)}`}});
 		t.is(stdout, testString);
 	});
 
 	test('.exe detection with custom Path and double quoting', async t => {
-		const {stdout} = await nanoSpawn('node', ['-p', 'process.argv0'], {argv0: testString, env: {[pathKey()]: `"${path.dirname(process.execPath)}"`}});
+		const {stdout} = await nanoSpawn(...nodePrintArgv0, {argv0: testString, env: {[pathKey()]: `"${path.dirname(process.execPath)}"`}});
 		t.is(stdout, testString);
 	});
 
@@ -923,7 +947,7 @@ test('Does not double escape shell strings', async t => {
 });
 
 test('Handles non-existing command', async t => {
-	const {message, exitCode, signalName, stderr, cause} = await t.throwsAsync(nanoSpawn('non-existent-command'));
+	const {message, exitCode, signalName, stderr, cause} = await t.throwsAsync(nanoSpawn(nonExistentCommand));
 
 	if (isWindows) {
 		t.is(signalName, undefined);
@@ -936,14 +960,14 @@ test('Handles non-existing command', async t => {
 		t.is(exitCode, undefined);
 		t.is(message, 'Command failed: non-existent-command');
 		t.is(stderr, '');
-		t.true(cause.message.includes('non-existent-command'));
+		t.true(cause.message.includes(nonExistentCommand));
 		t.is(cause.code, 'ENOENT');
 		t.is(cause.syscall, 'spawn non-existent-command');
 	}
 });
 
 test('Handles non-existing command, shell', async t => {
-	const {message, exitCode, signalName, stderr, cause} = await t.throwsAsync(nanoSpawn('non-existent-command', {shell: true}));
+	const {message, exitCode, signalName, stderr, cause} = await t.throwsAsync(nanoSpawn(nonExistentCommand, {shell: true}));
 
 	if (isWindows) {
 		t.is(signalName, undefined);
@@ -960,15 +984,13 @@ test('Handles non-existing command, shell', async t => {
 	}
 });
 
-const VERSION_REGEXP = /^\d+\.\d+\.\d+$/;
-
 test('Can run global npm binaries', async t => {
 	const {stdout} = await nanoSpawn('npm', ['--version']);
 	t.regex(stdout, VERSION_REGEXP);
 });
 
 const testLocalBinaryExec = async (t, cwd) => {
-	const {stdout} = await nanoSpawn('ava', ['--version'], {preferLocal: true, cwd});
+	const {stdout} = await nanoSpawn(...localBinary, {preferLocal: true, cwd});
 	t.regex(stdout, VERSION_REGEXP);
 };
 
@@ -978,7 +1000,7 @@ test('options.preferLocal true runs local npm binaries with options.cwd URL', te
 
 if (!isWindows) {
 	const testPathVariable = async (t, pathName) => {
-		const {stdout} = await nanoSpawn('ava', ['--version'], {preferLocal: true, env: {Path: undefined, [pathName]: path.dirname(process.execPath)}});
+		const {stdout} = await nanoSpawn(...localBinary, {preferLocal: true, env: {Path: undefined, [pathName]: path.dirname(process.execPath)}});
 		t.regex(stdout, VERSION_REGEXP);
 	};
 
@@ -991,12 +1013,12 @@ const testNoLocal = async (t, preferLocal) => {
 		.split(path.delimiter)
 		.filter(pathPart => !pathPart.includes(path.join('node_modules', '.bin')))
 		.join(path.delimiter);
-	const {stderr, cause} = await t.throwsAsync(nanoSpawn('ava', ['--version'], {preferLocal, env: {Path: undefined, PATH}}));
+	const {stderr, cause} = await t.throwsAsync(nanoSpawn(...localBinary, {preferLocal, env: {Path: undefined, PATH}}));
 	if (isWindows) {
 		t.true(stderr.includes('\'ava\' is not recognized as an internal or external command'));
 	} else {
 		t.is(cause.code, 'ENOENT');
-		t.is(cause.path, 'ava');
+		t.is(cause.path, localBinary[0]);
 	}
 };
 
@@ -1004,7 +1026,7 @@ test('options.preferLocal undefined does not run local npm binaries', testNoLoca
 test('options.preferLocal false does not run local npm binaries', testNoLocal, false);
 
 test('options.preferLocal true uses options.env when empty', async t => {
-	const {exitCode, stderr, cause} = await t.throwsAsync(nanoSpawn('ava', ['--version'], {preferLocal: true, env: {PATH: undefined, Path: undefined}}));
+	const {exitCode, stderr, cause} = await t.throwsAsync(nanoSpawn(...localBinary, {preferLocal: true, env: {PATH: undefined, Path: undefined}}));
 	if (isWindows) {
 		t.is(cause.code, 'ENOENT');
 	} else {
@@ -1015,7 +1037,7 @@ test('options.preferLocal true uses options.env when empty', async t => {
 
 if (isWindows) {
 	test('options.preferLocal true runs local npm binaries with process.env.Path', async t => {
-		const {stdout} = await nanoSpawn('ava', ['--version'], {preferLocal: true, env: {PATH: undefined, Path: process.env[pathKey()]}});
+		const {stdout} = await nanoSpawn(...localBinary, {preferLocal: true, env: {PATH: undefined, Path: process.env[pathKey()]}});
 		t.regex(stdout, VERSION_REGEXP);
 	});
 }
