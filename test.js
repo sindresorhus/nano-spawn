@@ -216,6 +216,42 @@ if (isLinux) {
 	});
 }
 
+test('Error on stdin', async t => {
+	const error = new Error(testString);
+	const promise = nanoSpawn(...nodePrintStdout);
+	const subprocess = await promise.nodeChildProcess;
+	subprocess.stdin.destroy(error);
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(promise);
+	t.is(exitCode, undefined);
+	t.is(signalName, undefined);
+	t.true(message.startsWith('Command failed: node -e'));
+	t.is(cause, error);
+});
+
+test('Error on stdout', async t => {
+	const error = new Error(testString);
+	const promise = nanoSpawn(...nodePrintStderr);
+	const subprocess = await promise.nodeChildProcess;
+	subprocess.stdout.destroy(error);
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(promise);
+	t.is(exitCode, undefined);
+	t.is(signalName, undefined);
+	t.true(message.startsWith('Command failed: node -e'));
+	t.is(cause, error);
+});
+
+test('Error on stderr', async t => {
+	const error = new Error(testString);
+	const promise = nanoSpawn(...nodePrintStdout);
+	const subprocess = await promise.nodeChildProcess;
+	subprocess.stderr.destroy(error);
+	const {exitCode, signalName, message, cause} = await t.throwsAsync(promise);
+	t.is(exitCode, undefined);
+	t.is(signalName, undefined);
+	t.true(message.startsWith('Command failed: node -e'));
+	t.is(cause, error);
+});
+
 test('promise.stdout can be iterated', async t => {
 	const promise = nanoSpawn(...nodePrintStdout);
 	const lines = await arrayFromAsync(promise.stdout);
