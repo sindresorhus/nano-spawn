@@ -4,7 +4,6 @@ import {stripVTControlCharacters} from 'node:util';
 import path from 'node:path';
 import process from 'node:process';
 import {fileURLToPath} from 'node:url';
-import {lineIterator, combineAsyncIterators} from './iterable.js';
 import {getForcedShell, escapeArguments} from './windows.js';
 
 export const normalizeArguments = (commandArguments = [], options = {}) => Array.isArray(commandArguments)
@@ -22,31 +21,16 @@ const getCommandPart = part => {
 		: part;
 };
 
-export const spawnProcess = ({file, commandArguments, options, start, command}) => {
+export const spawnProcess = (file, commandArguments, options, context) => {
 	const spawnOptions = getOptions(options);
 	[file, commandArguments] = handleNode(file, commandArguments);
 	const input = getInput(spawnOptions);
 
-	const instancePromise = getInstance({
-		file,
-		commandArguments,
-		spawnOptions,
-		start,
-		command,
-	});
-	const resultPromise = getResult(instancePromise, input, start, command);
-	const stdoutLines = lineIterator(instancePromise, 'stdout', resultPromise);
-	const stderrLines = lineIterator(instancePromise, 'stderr', resultPromise);
-
-	return Object.assign(resultPromise, {
-		nodeChildProcess: instancePromise,
-		[Symbol.asyncIterator]: () => combineAsyncIterators(stdoutLines, stderrLines),
-		stdout: stdoutLines,
-		stderr: stderrLines,
-	});
+	const instancePromise = getInstance(file, commandArguments, spawnOptions, context);
+	return Object.assign(getResult(instancePromise, input, context), {nodeChildProcess: instancePromise});
 };
 
-const getInstance = async ({file, commandArguments, spawnOptions, start, command}) => {
+const getInstance = async (file, commandArguments, spawnOptions, context) => {
 	try {
 		const forcedShell = await getForcedShell(file, spawnOptions);
 		spawnOptions.shell ||= forcedShell;
@@ -60,13 +44,7 @@ const getInstance = async ({file, commandArguments, spawnOptions, start, command
 		await once(instance, 'spawn');
 		return instance;
 	} catch (error) {
-		throw getResultError({
-			error,
-			result: initResult(),
-			instance: {},
-			start,
-			command,
-		});
+		throw getResultError(error, initResult(), {}, context);
 	}
 };
 
@@ -119,7 +97,7 @@ const getInput = ({stdio}) => {
 	return input;
 };
 
-const getResult = async (instancePromise, input, start, command) => {
+const getResult = async (instancePromise, input, context) => {
 	const instance = await instancePromise;
 	useInput(instance, input);
 	const result = initResult();
@@ -129,17 +107,11 @@ const getResult = async (instancePromise, input, start, command) => {
 
 	try {
 		await Promise.race([onClose, ...onStreamErrors(instance)]);
-		checkFailure(command, getErrorOutput(instance));
-		return getOutput(result, command, start);
+		checkFailure(context, getErrorOutput(instance));
+		return getOutput(result, context);
 	} catch (error) {
 		await Promise.allSettled([onClose]);
-		throw getResultError({
-			error,
-			result,
-			instance,
-			start,
-			command,
-		});
+		throw getResultError(error, result, instance, context);
 	}
 };
 
@@ -173,13 +145,13 @@ const onStreamError = async stream => {
 // Ignore errors that are due to closing errors when the subprocesses exit normally, or due to piping
 const IGNORED_CODES = new Set(['ERR_STREAM_PREMATURE_CLOSE', 'EPIPE']);
 
-const getResultError = ({error, result, instance, start, command}) => Object.assign(
-	getErrorInstance(error, command),
+const getResultError = (error, result, instance, context) => Object.assign(
+	getErrorInstance(error, context),
 	getErrorOutput(instance),
-	getOutput(result, command, start),
+	getOutput(result, context),
 );
 
-const getErrorInstance = (error, command) => error?.message.startsWith('Command ')
+const getErrorInstance = (error, {command}) => error?.message.startsWith('Command ')
 	? error
 	: new Error(`Command failed: ${command}`, {cause: error});
 
@@ -189,7 +161,7 @@ const getErrorOutput = ({exitCode, signalCode}) => ({
 	...(signalCode === null ? {} : {signalName: signalCode}),
 });
 
-const getOutput = ({stdout, stderr}, command, start) => ({
+const getOutput = ({stdout, stderr}, {command, start}) => ({
 	stdout: stripNewline(stdout),
 	stderr: stripNewline(stderr),
 	command,
@@ -200,7 +172,7 @@ const stripNewline = input => input?.at(-1) === '\n'
 	? input.slice(0, input.at(-2) === '\r' ? -2 : -1)
 	: input;
 
-const checkFailure = (command, {exitCode, signalName}) => {
+const checkFailure = ({command}, {exitCode, signalName}) => {
 	if (signalName !== undefined) {
 		throw new Error(`Command was terminated with ${signalName}: ${command}`);
 	}

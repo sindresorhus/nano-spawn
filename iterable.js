@@ -1,37 +1,16 @@
-// Merge two async iterators into one
-export async function * combineAsyncIterators(...iterators) {
-	try {
-		let promises = [];
-		while (iterators.length > 0) {
-			promises = iterators.map((iterator, index) => promises[index] ?? getNext(iterator));
-			// eslint-disable-next-line no-await-in-loop
-			const [{value, done}, index] = await Promise.race(promises
-				.map((promise, index) => Promise.all([promise, index])));
+export const addPromiseMethods = resultPromise => {
+	const stdoutLines = lineIterator(resultPromise, 'stdout');
+	const stderrLines = lineIterator(resultPromise, 'stderr');
 
-			const [iterator] = iterators.splice(index, 1);
-			promises.splice(index, 1);
-
-			if (!done) {
-				iterators.push(iterator);
-				yield value;
-			}
-		}
-	} finally {
-		await Promise.all(iterators.map(iterator => iterator.return?.()));
-	}
-}
-
-const getNext = async iterator => {
-	try {
-		return await iterator.next();
-	} catch (error) {
-		await iterator.throw?.(error);
-		throw error;
-	}
+	return Object.assign(resultPromise, {
+		stdout: stdoutLines,
+		stderr: stderrLines,
+		[Symbol.asyncIterator]: () => combineAsyncIterators(stdoutLines, stderrLines),
+	});
 };
 
-export async function * lineIterator(instancePromise, streamName, resultPromise) {
-	const instance = await instancePromise;
+const lineIterator = async function * (resultPromise, streamName) {
+	const instance = await resultPromise.nodeChildProcess;
 	const stream = instance[streamName];
 	if (!stream) {
 		return;
@@ -51,4 +30,36 @@ export async function * lineIterator(instancePromise, streamName, resultPromise)
 	} finally {
 		await resultPromise;
 	}
-}
+};
+
+// Merge two async iterators into one
+const combineAsyncIterators = async function * (...iterators) {
+	try {
+		let promises = [];
+		while (iterators.length > 0) {
+			promises = iterators.map((iterator, index) => promises[index] ?? getNext(iterator));
+			// eslint-disable-next-line no-await-in-loop
+			const [{value, done}, index] = await Promise.race(promises
+				.map((promise, index) => Promise.all([promise, index])));
+
+			const [iterator] = iterators.splice(index, 1);
+			promises.splice(index, 1);
+
+			if (!done) {
+				iterators.push(iterator);
+				yield value;
+			}
+		}
+	} finally {
+		await Promise.all(iterators.map(iterator => iterator.return?.()));
+	}
+};
+
+const getNext = async iterator => {
+	try {
+		return await iterator.next();
+	} catch (error) {
+		await iterator.throw?.(error);
+		throw error;
+	}
+};
