@@ -1,6 +1,5 @@
 import {statSync} from 'node:fs';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
 import process from 'node:process';
 
 // On Windows, running most executable files (except *.exe and *.com) requires using a shell.
@@ -8,7 +7,7 @@ import process from 'node:process';
 // We detect this situation and automatically:
 //  - Set the `shell: true` option
 //  - Escape shell-specific characters
-export const getForcedShell = (file, {shell, cwd = '.', env = process.env}) => process.platform === 'win32'
+export const getForcedShell = (file, {shell, cwd, env = process.env}) => process.platform === 'win32'
 	&& !shell
 	&& !isExe(file, cwd, env);
 
@@ -23,7 +22,6 @@ const isExe = (file, cwd, {Path = '', PATH = Path}) => {
 		return true;
 	}
 
-	const cwdPath = cwd instanceof URL ? fileURLToPath(cwd) : cwd;
 	const parts = PATH
 		// `PATH` is ;-separated on Windows
 		.split(path.delimiter)
@@ -32,7 +30,7 @@ const isExe = (file, cwd, {Path = '', PATH = Path}) => {
 		// `PATH` parts can be double quoted on Windows
 		.map(part => part.replace(/^"(.*)"$/, '$1'));
 	const possibleFiles = exeExtensions.flatMap(extension =>
-		[cwdPath, ...parts].map(part => `${path.resolve(part, file)}${extension}`));
+		[cwd, ...parts].map(part => `${path.resolve(part, file)}${extension}`));
 	return possibleFiles.some(possibleFile => {
 		try {
 			// This must unfortunately be synchronous because we return the spawned `subprocess` synchronously

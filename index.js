@@ -1,8 +1,10 @@
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {stripVTControlCharacters} from 'node:util';
+import path from 'node:path';
 import process from 'node:process';
 import {finished} from 'node:stream/promises';
+import {fileURLToPath} from 'node:url';
 import {lineIterator, combineAsyncIterators} from './iterable.js';
 import {getForcedShell, escapeArguments} from './windows.js';
 
@@ -49,13 +51,32 @@ const getOptions = ({
 	stdout,
 	stderr,
 	stdio = [stdin, stdout, stderr],
-	env,
+	env: envOption,
+	preferLocal,
+	cwd: cwdOption = '.',
 	...options
-}) => ({
-	...options,
-	stdio,
-	env: env === undefined ? env : {...process.env, ...env},
-});
+}) => {
+	const cwd = cwdOption instanceof URL ? fileURLToPath(cwdOption) : path.resolve(cwdOption);
+	const env = envOption === undefined ? undefined : {...process.env, ...envOption};
+	return {
+		...options,
+		stdio,
+		env: preferLocal ? addLocalPath(env ?? process.env, cwd) : env,
+		cwd,
+	};
+};
+
+const addLocalPath = ({Path = '', PATH = Path, ...env}, cwd) => {
+	const pathParts = PATH.split(path.delimiter);
+	const localPaths = getLocalPaths([], path.resolve(cwd))
+		.map(localPath => path.join(localPath, 'node_modules/.bin'))
+		.filter(localPath => !pathParts.includes(localPath));
+	return {...env, PATH: [...localPaths, PATH].filter(Boolean).join(path.delimiter)};
+};
+
+const getLocalPaths = (localPaths, localPath) => localPaths.at(-1) === localPath
+	? localPaths
+	: getLocalPaths([...localPaths, localPath], path.resolve(localPath, '..'));
 
 // When running `node`, keep the current Node version and CLI flags.
 // Not applied with file paths to `.../node` since those indicate a clear intent to use a specific Node version.
