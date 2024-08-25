@@ -21,11 +21,11 @@ export default function nanoSpawn(file, commandArguments = [], options = {}) {
 	const subprocess = spawn(...escapeArguments(file, commandArguments, forcedShell), spawnOptions);
 
 	useInput(subprocess, input);
-	const promise = getResult(subprocess, start, command);
+	const resultPromise = getResult(subprocess, start, command);
 
-	const stdoutLines = lineIterator(subprocess.stdout);
-	const stderrLines = lineIterator(subprocess.stderr);
-	return Object.assign(promise, {
+	const stdoutLines = lineIterator(subprocess.stdout, resultPromise);
+	const stderrLines = lineIterator(subprocess.stderr, resultPromise);
+	return Object.assign(resultPromise, {
 		subprocess,
 		[Symbol.asyncIterator]: () => combineAsyncIterators(stdoutLines, stderrLines),
 		stdout: stdoutLines,

@@ -158,6 +158,18 @@ test('Error on "error" event after spawn', async t => {
 	t.is(cause.cause, error);
 });
 
+test('promise.stdout can be iterated', async t => {
+	const promise = nanoSpawn('node', ['-e', 'console.log(".")']);
+	const lines = await arrayFromAsync(promise.stdout);
+	t.deepEqual(lines, ['.']);
+});
+
+test('promise.stderr can be iterated', async t => {
+	const promise = nanoSpawn('node', ['-e', 'console.error(".")']);
+	const lines = await arrayFromAsync(promise.stderr);
+	t.deepEqual(lines, ['.']);
+});
+
 test('result.stdout is set', async t => {
 	const {stdout, stderr} = await nanoSpawn('node', ['-e', 'console.log(".")']);
 	t.is(stdout, '.');
@@ -184,14 +196,18 @@ test('error.stderr is set', async t => {
 	t.is(stderr, '.');
 });
 
-test('result.stdout strips Windows newline', async t => {
-	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write(".\\r\\n")']);
-	t.is(stdout, '.');
+test('promise.stdout has no iterations if options.stdout "ignore"', async t => {
+	const promise = nanoSpawn('node', ['-e', 'console.log("."); console.error(".");'], {stdout: 'ignore'});
+	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(promise.stdout), arrayFromAsync(promise.stderr)]);
+	t.deepEqual(stdoutLines, []);
+	t.deepEqual(stderrLines, ['.']);
 });
 
-test('result.stderr strips Windows newline', async t => {
-	const {stderr} = await nanoSpawn('node', ['-e', 'process.stderr.write(".\\r\\n")']);
-	t.is(stderr, '.');
+test('promise.stderr has no iterations if options.stderr "ignore"', async t => {
+	const promise = nanoSpawn('node', ['-e', 'console.log("."); console.error(".");'], {stderr: 'ignore'});
+	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(promise.stdout), arrayFromAsync(promise.stderr)]);
+	t.deepEqual(stdoutLines, ['.']);
+	t.deepEqual(stderrLines, []);
 });
 
 test('result.stdout is undefined if options.stdout "ignore"', async t => {
@@ -200,49 +216,238 @@ test('result.stdout is undefined if options.stdout "ignore"', async t => {
 	t.is(stderr, '.');
 });
 
+test('result.stderr is undefined if options.stderr "ignore"', async t => {
+	const {stdout, stderr} = await nanoSpawn('node', ['-e', 'console.log("."); console.error(".");'], {stderr: 'ignore'});
+	t.is(stdout, '.');
+	t.is(stderr, undefined);
+});
+
+test('promise.stdout handles no newline at the end', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdout.write("a\\nb")']);
+	const lines = await arrayFromAsync(promise.stdout);
+	t.deepEqual(lines, ['a', 'b']);
+});
+
+test('result.stdout handles no newline at the end', async t => {
+	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write("a\\nb")']);
+	t.is(stdout, 'a\nb');
+});
+
+test('promise.stdout handles newline at the end', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdout.write("a\\nb\\n")']);
+	const lines = await arrayFromAsync(promise.stdout);
+	t.deepEqual(lines, ['a', 'b']);
+});
+
+test('result.stdout handles newline at the end', async t => {
+	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write("a\\nb\\n")']);
+	t.is(stdout, 'a\nb');
+});
+
+test('promise.stdout handles newline at the beginning', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdout.write("\\na\\nb")']);
+	const lines = await arrayFromAsync(promise.stdout);
+	t.deepEqual(lines, ['', 'a', 'b']);
+});
+
+test('result.stdout handles newline at the beginning', async t => {
+	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write("\\na\\nb")']);
+	t.is(stdout, '\na\nb');
+});
+
+test('promise.stdout handles 2 newlines at the end', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdout.write("a\\nb\\n\\n")']);
+	const lines = await arrayFromAsync(promise.stdout);
+	t.deepEqual(lines, ['a', 'b', '']);
+});
+
+test('result.stdout handles 2 newlines at the end', async t => {
+	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write("a\\nb\\n\\n")']);
+	t.is(stdout, 'a\nb\n');
+});
+
+test('promise.stdout handles Windows newlines', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdout.write("a\\r\\nb")']);
+	const lines = await arrayFromAsync(promise.stdout);
+	t.deepEqual(lines, ['a', 'b']);
+});
+
+test('result.stdout handles Windows newlines', async t => {
+	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write("a\\r\\nb")']);
+	t.is(stdout, 'a\r\nb');
+});
+
+test('promise.stdout handles Windows newline at the end', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdout.write("a\\r\\nb\\r\\n")']);
+	const lines = await arrayFromAsync(promise.stdout);
+	t.deepEqual(lines, ['a', 'b']);
+});
+
+test('result.stdout handles Windows newline at the end', async t => {
+	const {stdout} = await nanoSpawn('node', ['-e', 'process.stdout.write("a\\r\\nb\\r\\n")']);
+	t.is(stdout, 'a\r\nb');
+});
+
 const multibyteString = '.\u{1F984}.';
 const multibyteUint8Array = new TextEncoder().encode(multibyteString);
 const multibyteFirstHalf = multibyteUint8Array.slice(0, 3);
 const multibyteSecondHalf = multibyteUint8Array.slice(3);
 
-test.serial('result.stdout works with multibyte sequences', async t => {
-	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout)']);
+const writeMultibyte = async promise => {
 	promise.subprocess.stdin.write(multibyteFirstHalf);
 	await setTimeout(1e2);
 	promise.subprocess.stdin.end(multibyteSecondHalf);
+};
+
+test.serial('promise.stdout works with multibyte sequences', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout)']);
+	writeMultibyte(promise);
+	const lines = await arrayFromAsync(promise.stdout);
+	t.deepEqual(lines, [multibyteString]);
+});
+
+test.serial('result.stdout works with multibyte sequences', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout)']);
+	writeMultibyte(promise);
 	const {stdout} = await promise;
 	t.is(stdout, multibyteString);
 });
 
-test('promise.stdout can be iterated', async t => {
-	const promise = nanoSpawn('node', ['-e', 'console.log("a\\nb")']);
+test('Handles promise.stdout error', async t => {
+	const promise = nanoSpawn('node', ['--version']);
+	const error = new Error(testString);
+	promise.subprocess.stdout.emit('error', error);
+	const {cause} = await t.throwsAsync(arrayFromAsync(promise.stdout));
+	t.is(cause, error);
+});
 
-	const lines = await arrayFromAsync(promise.stdout);
-	t.deepEqual(lines, ['a', 'b']);
+test('Handles promise.stderr error', async t => {
+	const promise = nanoSpawn('node', ['--version']);
+	const error = new Error(testString);
+	promise.subprocess.stderr.emit('error', error);
+	const {cause} = await t.throwsAsync(arrayFromAsync(promise.stderr));
+	t.is(cause, error);
+});
 
+test('Handles result.stdout error', async t => {
+	const promise = nanoSpawn('node', ['--version']);
+	const error = new Error(testString);
+	promise.subprocess.stdout.emit('error', error);
+	const {cause} = await t.throwsAsync(promise);
+	t.is(cause, error);
+});
+
+test('Handles result.stderr error', async t => {
+	const promise = nanoSpawn('node', ['--version']);
+	const error = new Error(testString);
+	promise.subprocess.stderr.emit('error', error);
+	const {cause} = await t.throwsAsync(promise);
+	t.is(cause, error);
+});
+
+test.serial('promise.stdout iteration break waits for the subprocess success', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout); console.log("a");']);
+	let done = false;
+	globalThis.setTimeout(() => {
+		t.true(promise.subprocess.stdout.readable);
+		t.true(promise.subprocess.stdin.writable);
+		promise.subprocess.stdin.end('b');
+		done = true;
+	}, 1e2);
+
+	// eslint-disable-next-line no-unreachable-loop
+	for await (const line of promise.stdout) {
+		t.is(line, 'a');
+		t.false(done);
+		break;
+	}
+
+	t.true(done);
 	const {stdout} = await promise;
 	t.is(stdout, 'a\nb');
 });
 
-test('promise.stderr can be iterated', async t => {
-	const promise = nanoSpawn('node', ['-e', 'console.error("a\\nb")']);
+test.serial('promise.stdout iteration exception waits for the subprocess success', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout); console.log("a");']);
+	let done = false;
+	globalThis.setTimeout(() => {
+		t.true(promise.subprocess.stdout.readable);
+		t.true(promise.subprocess.stdin.writable);
+		promise.subprocess.stdin.end('b');
+		done = true;
+	}, 1e2);
 
-	const lines = await arrayFromAsync(promise.stderr);
-	t.deepEqual(lines, ['a', 'b']);
+	const cause = new Error(testString);
+	try {
+		// eslint-disable-next-line no-unreachable-loop
+		for await (const line of promise.stdout) {
+			t.is(line, 'a');
+			t.false(done);
+			throw cause;
+		}
+	} catch (error) {
+		t.is(error, cause);
+	}
 
-	const {stderr} = await promise;
-	t.is(stderr, 'a\nb');
+	t.true(done);
+	const {stdout} = await promise;
+	t.is(stdout, 'a\nb');
 });
 
-test('promise.stdout has no iterations if options.stdout "ignore"', async t => {
-	const promise = nanoSpawn('node', ['-e', 'console.log("."); console.error(".");'], {stdout: 'ignore'});
-	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(promise.stdout), arrayFromAsync(promise.stderr)]);
-	t.deepEqual(stdoutLines, []);
-	t.deepEqual(stderrLines, ['.']);
+test.serial('promise.stdout iteration break waits for the subprocess failure', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdin.once("data", (chunk) => {console.log(chunk.toString()); process.exit(2)}); console.log("a");']);
+	let done = false;
+	globalThis.setTimeout(() => {
+		t.true(promise.subprocess.stdout.readable);
+		t.true(promise.subprocess.stdin.writable);
+		promise.subprocess.stdin.end('b');
+		done = true;
+	}, 1e2);
 
-	const {stdout, stderr} = await promise;
-	t.is(stdout, undefined);
-	t.is(stderr, '.');
+	let cause;
+	try {
+		// eslint-disable-next-line no-unreachable-loop
+		for await (const line of promise.stdout) {
+			t.is(line, 'a');
+			t.false(done);
+			break;
+		}
+	} catch (error) {
+		cause = error;
+	}
+
+	t.true(done);
+	const error = await t.throwsAsync(promise);
+	t.is(error, cause);
+	t.is(error.stdout, 'a\nb');
+});
+
+test.serial('promise.stdout iteration exception waits for the subprocess failure', async t => {
+	const promise = nanoSpawn('node', ['-e', 'process.stdin.once("data", (chunk) => {console.log(chunk.toString()); process.exit(2)}); console.log("a");']);
+	let done = false;
+	globalThis.setTimeout(() => {
+		t.true(promise.subprocess.stdout.readable);
+		t.true(promise.subprocess.stdin.writable);
+		promise.subprocess.stdin.end('b');
+		done = true;
+	}, 1e2);
+
+	const cause = new Error(testString);
+	try {
+		// eslint-disable-next-line no-unreachable-loop
+		for await (const line of promise.stdout) {
+			t.is(line, 'a');
+			t.false(done);
+			throw cause;
+		}
+	} catch (error) {
+		t.is(error, cause);
+	}
+
+	t.true(done);
+	const error = await t.throwsAsync(promise);
+	t.not(error, cause);
+	t.is(error.stdout, 'a\nb');
 });
 
 test('promise can be iterated with both stdout and stderr', async t => {
@@ -256,42 +461,12 @@ test('promise can be iterated with both stdout and stderr', async t => {
 	t.is(stderr, 'b\nd');
 });
 
-test('stdout handles no newline at the end', async t => {
-	const result = nanoSpawn('node', ['-e', 'process.stdout.write("Hello\\nWorld")']);
-	const lines = await arrayFromAsync(result.stdout);
-	t.deepEqual(lines, ['Hello', 'World']);
-});
-
-test('stdout handles newline at the end', async t => {
-	const result = nanoSpawn('node', ['-e', 'process.stdout.write("Hello\\nWorld\\n")']);
-	const lines = await arrayFromAsync(result.stdout);
-	t.deepEqual(lines, ['Hello', 'World']);
-});
-
-test('stdout handles 2 newlines at the end', async t => {
-	const result = nanoSpawn('node', ['-e', 'process.stdout.write("Hello\\nWorld\\n\\n")']);
-	const lines = await arrayFromAsync(result.stdout);
-	t.deepEqual(lines, ['Hello', 'World', '']);
-});
-
-test('stdout handles Windows newlines', async t => {
-	const result = nanoSpawn('node', ['-e', 'process.stdout.write("Hello\\r\\nWorld")']);
-	const lines = await arrayFromAsync(result.stdout);
-	t.deepEqual(lines, ['Hello', 'World']);
-});
-
-test('stdout handles Windows newline at the end', async t => {
-	const result = nanoSpawn('node', ['-e', 'process.stdout.write("Hello\\r\\nWorld\\r\\n")']);
-	const lines = await arrayFromAsync(result.stdout);
-	t.deepEqual(lines, ['Hello', 'World']);
-});
-
 test('Returns a promise', async t => {
-	const result = nanoSpawn('node', ['--version']);
-	t.false(Object.prototype.propertyIsEnumerable.call(result, 'then'));
-	t.false(Object.hasOwn(result, 'then'));
-	t.true(result instanceof Promise);
-	await result;
+	const promise = nanoSpawn('node', ['--version']);
+	t.false(Object.prototype.propertyIsEnumerable.call(promise, 'then'));
+	t.false(Object.hasOwn(promise, 'then'));
+	t.true(promise instanceof Promise);
+	await promise;
 });
 
 test('promise.subprocess is set', async t => {
@@ -300,22 +475,6 @@ test('promise.subprocess is set', async t => {
 
 	const {signalName} = await t.throwsAsync(promise);
 	t.is(signalName, 'SIGTERM');
-});
-
-test('Handles stdout error', async t => {
-	const promise = nanoSpawn('node', ['--version']);
-	const error = new Error(testString);
-	promise.subprocess.stdout.emit('error', error);
-	const {cause} = await t.throwsAsync(promise);
-	t.is(cause, error);
-});
-
-test('Handles stderr error', async t => {
-	const promise = nanoSpawn('node', ['--version']);
-	const error = new Error(testString);
-	promise.subprocess.stderr.emit('error', error);
-	const {cause} = await t.throwsAsync(promise);
-	t.is(cause, error);
 });
 
 test('result.command is defined', async t => {
