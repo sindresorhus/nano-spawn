@@ -737,52 +737,109 @@ test('Handles non-existing command, shell', async t => {
 	}
 });
 
+const VERSION_REGEXP = /^\d+\.\d+\.\d+$/;
+
 test('Can run global npm binaries', async t => {
 	const {stdout} = await nanoSpawn('npm', ['--version']);
-	t.regex(stdout, /^\d+\.\d+\.\d+$/);
+	t.regex(stdout, VERSION_REGEXP);
 });
 
-test('Can run local npm binaries', async t => {
+const testLocalBinaryExec = async (t, cwd) => {
+	const {stdout} = await nanoSpawn('ava', ['--version'], {preferLocal: true, cwd});
+	t.regex(stdout, VERSION_REGEXP);
+};
+
+test('options.preferLocal true runs local npm binaries', testLocalBinaryExec, undefined);
+test('options.preferLocal true runs local npm binaries with options.cwd string', testLocalBinaryExec, './fixtures');
+test('options.preferLocal true runs local npm binaries with options.cwd URL', testLocalBinaryExec, FIXTURES_URL);
+
+if (!isWindows) {
+	const testPathVariable = async (t, pathName) => {
+		const {stdout} = await nanoSpawn('ava', ['--version'], {preferLocal: true, env: {Path: undefined, [pathName]: path.dirname(process.execPath)}});
+		t.regex(stdout, VERSION_REGEXP);
+	};
+
+	test('options.preferLocal true uses options.env.PATH when set', testPathVariable, 'PATH');
+	test('options.preferLocal true uses options.env.Path when set', testPathVariable, 'Path');
+}
+
+const testNoLocal = async (t, preferLocal) => {
+	const PATH = process.env[pathKey()]
+		.split(path.delimiter)
+		.filter(pathPart => !pathPart.includes(path.join('node_modules', '.bin')))
+		.join(path.delimiter);
+	const {stderr, cause} = await t.throwsAsync(nanoSpawn('ava', ['--version'], {preferLocal, env: {Path: undefined, PATH}}));
+	if (isWindows) {
+		t.true(stderr.includes('\'ava\' is not recognized as an internal or external command'));
+	} else {
+		t.is(cause.code, 'ENOENT');
+		t.is(cause.path, 'ava');
+	}
+};
+
+test('options.preferLocal undefined does not run local npm binaries', testNoLocal, undefined);
+test('options.preferLocal false does not run local npm binaries', testNoLocal, false);
+
+test('options.preferLocal true uses options.env when empty', async t => {
+	const {exitCode, stderr, cause} = await t.throwsAsync(nanoSpawn('ava', ['--version'], {preferLocal: true, env: {PATH: undefined, Path: undefined}}));
+	if (isWindows) {
+		t.is(cause.code, 'ENOENT');
+	} else {
+		t.is(exitCode, 127);
+		t.true(stderr.includes('No such file'));
+	}
+});
+
+if (isWindows) {
+	test('options.preferLocal true runs local npm binaries with process.env.Path', async t => {
+		const {stdout} = await nanoSpawn('ava', ['--version'], {preferLocal: true, env: {PATH: undefined, Path: process.env[pathKey()]}});
+		t.regex(stdout, VERSION_REGEXP);
+	});
+}
+
+test('options.preferLocal true does not add node_modules/.bin if already present', async t => {
 	const localDirectory = fileURLToPath(new URL('node_modules/.bin', import.meta.url));
-	const pathValue = `${process.env[pathKey()]}${path.delimiter}${localDirectory}`;
-	const {stdout} = await nanoSpawn('ava', ['--version'], {[pathKey()]: pathValue});
-	t.regex(stdout, /^\d+\.\d+\.\d+$/);
+	const currentPath = process.env[pathKey()];
+	const pathValue = `${localDirectory}${path.delimiter}${currentPath}`;
+	const {stdout} = await nanoSpawn('node', ['-p', `process.env.${pathKey()}`], {preferLocal: true, env: {[pathKey()]: pathValue}});
+	t.is(
+		stdout.split(path.delimiter).filter(pathPart => pathPart === localDirectory).length
+		- currentPath.split(path.delimiter).filter(pathPart => pathPart === localDirectory).length,
+		1,
+	);
 });
 
 const testLocalBinary = async (t, input) => {
-	const localDirectory = fileURLToPath(new URL('node_modules/.bin', import.meta.url));
-	const pathValue = `${process.env[pathKey()]}${path.delimiter}${localDirectory}`;
-	const testFile = fileURLToPath(new URL('fixtures/test.js', import.meta.url));
-	const {stderr} = await nanoSpawn('ava', [testFile, '--', input], {[pathKey()]: pathValue});
+	const {stderr} = await nanoSpawn('ava', ['test.js', '--', input], {preferLocal: true, cwd: FIXTURES_URL});
 	t.is(stderr, input);
 };
 
-test('Can pass arguments to local npm binaries, "', testLocalBinary, '"');
-test('Can pass arguments to local npm binaries, \\', testLocalBinary, '\\');
-test('Can pass arguments to local npm binaries, \\.', testLocalBinary, '\\.');
-test('Can pass arguments to local npm binaries, \\"', testLocalBinary, '\\"');
-test('Can pass arguments to local npm binaries, \\\\"', testLocalBinary, '\\\\"');
-test('Can pass arguments to local npm binaries, a b', testLocalBinary, 'a b');
-test('Can pass arguments to local npm binaries, \'.\'', testLocalBinary, '\'.\'');
-test('Can pass arguments to local npm binaries, "."', testLocalBinary, '"."');
-test('Can pass arguments to local npm binaries, (', testLocalBinary, '(');
-test('Can pass arguments to local npm binaries, )', testLocalBinary, ')');
-test('Can pass arguments to local npm binaries, ]', testLocalBinary, ']');
-test('Can pass arguments to local npm binaries, [', testLocalBinary, '[');
-test('Can pass arguments to local npm binaries, %', testLocalBinary, '%');
-test('Can pass arguments to local npm binaries, %1', testLocalBinary, '%1');
-test('Can pass arguments to local npm binaries, !', testLocalBinary, '!');
-test('Can pass arguments to local npm binaries, ^', testLocalBinary, '^');
-test('Can pass arguments to local npm binaries, `', testLocalBinary, '`');
-test('Can pass arguments to local npm binaries, <', testLocalBinary, '<');
-test('Can pass arguments to local npm binaries, >', testLocalBinary, '>');
-test('Can pass arguments to local npm binaries, &', testLocalBinary, '&');
-test('Can pass arguments to local npm binaries, |', testLocalBinary, '|');
-test('Can pass arguments to local npm binaries, ;', testLocalBinary, ';');
-test('Can pass arguments to local npm binaries, ,', testLocalBinary, ',');
-test('Can pass arguments to local npm binaries, space', testLocalBinary, ' ');
-test('Can pass arguments to local npm binaries, *', testLocalBinary, '*');
-test('Can pass arguments to local npm binaries, ?', testLocalBinary, '?');
+test('options.preferLocal true can pass arguments to local npm binaries, "', testLocalBinary, '"');
+test('options.preferLocal true can pass arguments to local npm binaries, \\', testLocalBinary, '\\');
+test('options.preferLocal true can pass arguments to local npm binaries, \\.', testLocalBinary, '\\.');
+test('options.preferLocal true can pass arguments to local npm binaries, \\"', testLocalBinary, '\\"');
+test('options.preferLocal true can pass arguments to local npm binaries, \\\\"', testLocalBinary, '\\\\"');
+test('options.preferLocal true can pass arguments to local npm binaries, a b', testLocalBinary, 'a b');
+test('options.preferLocal true can pass arguments to local npm binaries, \'.\'', testLocalBinary, '\'.\'');
+test('options.preferLocal true can pass arguments to local npm binaries, "."', testLocalBinary, '"."');
+test('options.preferLocal true can pass arguments to local npm binaries, (', testLocalBinary, '(');
+test('options.preferLocal true can pass arguments to local npm binaries, )', testLocalBinary, ')');
+test('options.preferLocal true can pass arguments to local npm binaries, ]', testLocalBinary, ']');
+test('options.preferLocal true can pass arguments to local npm binaries, [', testLocalBinary, '[');
+test('options.preferLocal true can pass arguments to local npm binaries, %', testLocalBinary, '%');
+test('options.preferLocal true can pass arguments to local npm binaries, %1', testLocalBinary, '%1');
+test('options.preferLocal true can pass arguments to local npm binaries, !', testLocalBinary, '!');
+test('options.preferLocal true can pass arguments to local npm binaries, ^', testLocalBinary, '^');
+test('options.preferLocal true can pass arguments to local npm binaries, `', testLocalBinary, '`');
+test('options.preferLocal true can pass arguments to local npm binaries, <', testLocalBinary, '<');
+test('options.preferLocal true can pass arguments to local npm binaries, >', testLocalBinary, '>');
+test('options.preferLocal true can pass arguments to local npm binaries, &', testLocalBinary, '&');
+test('options.preferLocal true can pass arguments to local npm binaries, |', testLocalBinary, '|');
+test('options.preferLocal true can pass arguments to local npm binaries, ;', testLocalBinary, ';');
+test('options.preferLocal true can pass arguments to local npm binaries, ,', testLocalBinary, ',');
+test('options.preferLocal true can pass arguments to local npm binaries, space', testLocalBinary, ' ');
+test('options.preferLocal true can pass arguments to local npm binaries, *', testLocalBinary, '*');
+test('options.preferLocal true can pass arguments to local npm binaries, ?', testLocalBinary, '?');
 
 test('Can run OS binaries', async t => {
 	const {stdout} = await nanoSpawn('git', ['--version']);
