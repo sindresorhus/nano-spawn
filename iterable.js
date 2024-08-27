@@ -20,19 +20,23 @@ export async function * combineAsyncIterators(iterator1, iterator2) {
 	}
 }
 
-export async function * lineIterator(iterable) {
-	if (!iterable) {
+export async function * lineIterator(stream, resultPromise) {
+	if (!stream) {
 		return;
 	}
 
-	let buffer = '';
-	for await (const chunk of iterable) {
-		const lines = `${buffer}${chunk}`.split(/\r?\n/);
-		buffer = lines.pop(); // Keep last line in buffer as it may not be complete
-		yield * lines;
-	}
+	try {
+		let buffer = '';
+		for await (const chunk of stream.iterator({destroyOnReturn: false})) {
+			const lines = `${buffer}${chunk}`.split(/\r?\n/);
+			buffer = lines.pop(); // Keep last line in buffer as it may not be complete
+			yield * lines;
+		}
 
-	if (buffer) {
-		yield buffer; // Yield any remaining data as the last line
+		if (buffer) {
+			yield buffer; // Yield any remaining data as the last line
+		}
+	} finally {
+		await resultPromise;
 	}
 }
