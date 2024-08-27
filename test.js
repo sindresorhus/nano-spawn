@@ -348,17 +348,16 @@ test('Handles result.stderr error', async t => {
 test.serial('promise.stdout iteration break waits for the subprocess success', async t => {
 	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout); console.log("a");']);
 	let done = false;
-	globalThis.setTimeout(() => {
-		t.true(promise.subprocess.stdout.readable);
-		t.true(promise.subprocess.stdin.writable);
-		promise.subprocess.stdin.end('b');
-		done = true;
-	}, 1e2);
 
 	// eslint-disable-next-line no-unreachable-loop
 	for await (const line of promise.stdout) {
 		t.is(line, 'a');
-		t.false(done);
+		globalThis.setTimeout(() => {
+			t.true(promise.subprocess.stdout.readable);
+			t.true(promise.subprocess.stdin.writable);
+			promise.subprocess.stdin.end('b');
+			done = true;
+		}, 1e2);
 		break;
 	}
 
@@ -370,19 +369,18 @@ test.serial('promise.stdout iteration break waits for the subprocess success', a
 test.serial('promise.stdout iteration exception waits for the subprocess success', async t => {
 	const promise = nanoSpawn('node', ['-e', 'process.stdin.pipe(process.stdout); console.log("a");']);
 	let done = false;
-	globalThis.setTimeout(() => {
-		t.true(promise.subprocess.stdout.readable);
-		t.true(promise.subprocess.stdin.writable);
-		promise.subprocess.stdin.end('b');
-		done = true;
-	}, 1e2);
 
 	const cause = new Error(testString);
 	try {
 		// eslint-disable-next-line no-unreachable-loop
 		for await (const line of promise.stdout) {
 			t.is(line, 'a');
-			t.false(done);
+			globalThis.setTimeout(() => {
+				t.true(promise.subprocess.stdout.readable);
+				t.true(promise.subprocess.stdin.writable);
+				promise.subprocess.stdin.end('b');
+				done = true;
+			}, 1e2);
 			throw cause;
 		}
 	} catch (error) {
@@ -397,19 +395,18 @@ test.serial('promise.stdout iteration exception waits for the subprocess success
 test.serial('promise.stdout iteration break waits for the subprocess failure', async t => {
 	const promise = nanoSpawn('node', ['-e', 'process.stdin.once("data", (chunk) => {console.log(chunk.toString()); process.exit(2)}); console.log("a");']);
 	let done = false;
-	globalThis.setTimeout(() => {
-		t.true(promise.subprocess.stdout.readable);
-		t.true(promise.subprocess.stdin.writable);
-		promise.subprocess.stdin.end('b');
-		done = true;
-	}, 1e2);
 
 	let cause;
 	try {
 		// eslint-disable-next-line no-unreachable-loop
 		for await (const line of promise.stdout) {
 			t.is(line, 'a');
-			t.false(done);
+			globalThis.setTimeout(() => {
+				t.true(promise.subprocess.stdout.readable);
+				t.true(promise.subprocess.stdin.writable);
+				promise.subprocess.stdin.end('b');
+				done = true;
+			}, 1e2);
 			break;
 		}
 	} catch (error) {
@@ -425,19 +422,18 @@ test.serial('promise.stdout iteration break waits for the subprocess failure', a
 test.serial('promise.stdout iteration exception waits for the subprocess failure', async t => {
 	const promise = nanoSpawn('node', ['-e', 'process.stdin.once("data", (chunk) => {console.log(chunk.toString()); process.exit(2)}); console.log("a");']);
 	let done = false;
-	globalThis.setTimeout(() => {
-		t.true(promise.subprocess.stdout.readable);
-		t.true(promise.subprocess.stdin.writable);
-		promise.subprocess.stdin.end('b');
-		done = true;
-	}, 1e2);
 
 	const cause = new Error(testString);
 	try {
 		// eslint-disable-next-line no-unreachable-loop
 		for await (const line of promise.stdout) {
 			t.is(line, 'a');
-			t.false(done);
+			globalThis.setTimeout(() => {
+				t.true(promise.subprocess.stdout.readable);
+				t.true(promise.subprocess.stdin.writable);
+				promise.subprocess.stdin.end('b');
+				done = true;
+			}, 1e2);
 			throw cause;
 		}
 	} catch (error) {
