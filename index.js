@@ -109,12 +109,15 @@ const getResult = async (subprocess, start, command) => {
 
 	try {
 		await Promise.all([onExit, onStdoutDone, onStderrDone]);
-		const output = getOutput(subprocess, result, command, start);
-		checkFailure(command, output);
-		return output;
+		checkFailure(command, getErrorOutput(subprocess));
+		return getOutput(result, command, start);
 	} catch (error) {
 		await Promise.allSettled([onExit, onStdoutDone, onStderrDone]);
-		throw Object.assign(getResultError(error, command), getOutput(subprocess, result, command, start));
+		throw Object.assign(
+			getResultError(error, command),
+			getErrorOutput(subprocess),
+			getOutput(result, command, start),
+		);
 	}
 };
 
@@ -148,10 +151,7 @@ const bufferOutput = async (stream, result, streamName) => {
 	await finished(stream, {cleanup: true});
 };
 
-const getOutput = ({exitCode, signalCode}, {stdout, stderr}, command, start) => ({
-	// `exitCode` can be a negative number (`errno`) when the `error` event is emitted on the subprocess
-	...(exitCode === null || exitCode < 0 ? {} : {exitCode}),
-	...(signalCode === null ? {} : {signalName: signalCode}),
+const getOutput = ({stdout, stderr}, command, start) => ({
 	stdout: stripNewline(stdout),
 	stderr: stripNewline(stderr),
 	command,
@@ -162,12 +162,18 @@ const stripNewline = input => input?.at(-1) === '\n'
 	? input.slice(0, input.at(-2) === '\r' ? -2 : -1)
 	: input;
 
+const getErrorOutput = ({exitCode, signalCode}) => ({
+	// `exitCode` can be a negative number (`errno`) when the `error` event is emitted on the subprocess
+	...(exitCode === null || exitCode < 1 ? {} : {exitCode}),
+	...(signalCode === null ? {} : {signalName: signalCode}),
+});
+
 const checkFailure = (command, {exitCode, signalName}) => {
 	if (signalName !== undefined) {
 		throw new Error(`Command was terminated with ${signalName}: ${command}`);
 	}
 
-	if (exitCode !== 0) {
+	if (exitCode !== undefined) {
 		throw new Error(`Command failed with exit code ${exitCode}: ${command}`);
 	}
 };
