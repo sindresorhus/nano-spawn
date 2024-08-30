@@ -16,24 +16,50 @@ export default function nanoSpawn(file, commandArguments = [], options = {}) {
 	const command = getCommand(file, commandArguments);
 	const spawnOptions = getOptions(options);
 	[file, commandArguments] = handleNode(file, commandArguments);
-	const forcedShell = getForcedShell(file, spawnOptions);
-	spawnOptions.shell ||= forcedShell;
 	const input = getInput(spawnOptions);
 
-	const subprocess = spawn(...escapeArguments(file, commandArguments, forcedShell), spawnOptions);
+	const instancePromise = getInstance({
+		file,
+		commandArguments,
+		spawnOptions,
+		start,
+		command,
+	});
+	const resultPromise = getResult(instancePromise, input, start, command);
+	const stdoutLines = lineIterator(instancePromise, 'stdout', resultPromise);
+	const stderrLines = lineIterator(instancePromise, 'stderr', resultPromise);
 
-	useInput(subprocess, input);
-	const resultPromise = getResult(subprocess, start, command);
-
-	const stdoutLines = lineIterator(subprocess.stdout, resultPromise);
-	const stderrLines = lineIterator(subprocess.stderr, resultPromise);
 	return Object.assign(resultPromise, {
-		subprocess,
+		nodeChildProcess: instancePromise,
 		[Symbol.asyncIterator]: () => combineAsyncIterators(stdoutLines, stderrLines),
 		stdout: stdoutLines,
 		stderr: stderrLines,
 	});
 }
+
+const getInstance = async ({file, commandArguments, spawnOptions, start, command}) => {
+	try {
+		const forcedShell = await getForcedShell(file, spawnOptions);
+		spawnOptions.shell ||= forcedShell;
+		const instance = spawn(...escapeArguments(file, commandArguments, forcedShell), spawnOptions);
+
+		// The `error` event is caught by `once(instance, 'spawn')` and `once(instance, 'close')`.
+		// But it creates an uncaught exception if it happens exactly one tick after 'spawn'.
+		// This prevents that.
+		instance.once('error', () => {});
+
+		await once(instance, 'spawn');
+		return instance;
+	} catch (error) {
+		throw getResultError({
+			error,
+			result: initResult(),
+			instance: {},
+			start,
+			command,
+		});
+	}
+};
 
 const getCommand = (file, commandArguments) => [file, ...commandArguments]
 	.map(part => getCommandPart(part))
@@ -95,48 +121,43 @@ const getInput = ({stdio}) => {
 	return input;
 };
 
-const useInput = (subprocess, input) => {
+const useInput = (instance, input) => {
 	if (input !== undefined) {
-		subprocess.stdin.end(input);
+		instance.stdin.end(input);
 	}
 };
 
-const getResult = async (subprocess, start, command) => {
-	const result = {};
-	const onExit = waitForExit(subprocess);
-	const onStdoutDone = bufferOutput(subprocess.stdout, result, 'stdout');
-	const onStderrDone = bufferOutput(subprocess.stderr, result, 'stderr');
+const getResult = async (instancePromise, input, start, command) => {
+	const instance = await instancePromise;
+	useInput(instance, input);
+	const result = initResult();
+	const onExit = once(instance, 'close');
+	const onStdoutDone = bufferOutput(instance.stdout, result, 'stdout');
+	const onStderrDone = bufferOutput(instance.stderr, result, 'stderr');
 
 	try {
 		await Promise.all([onExit, onStdoutDone, onStderrDone]);
-		checkFailure(command, getErrorOutput(subprocess));
+		checkFailure(command, getErrorOutput(instance));
 		return getOutput(result, command, start);
 	} catch (error) {
 		await Promise.allSettled([onExit, onStdoutDone, onStderrDone]);
-		throw Object.assign(
-			getResultError(error, command),
-			getErrorOutput(subprocess),
-			getOutput(result, command, start),
-		);
+		throw getResultError({
+			error,
+			result,
+			instance,
+			start,
+			command,
+		});
 	}
 };
 
-// The `error` event on subprocess is emitted either:
-//  - Before `spawn`, e.g. for a non-existing executable file.
-//    Then, `subprocess.pid` is `undefined` and `close` is never emitted.
-//  - After `spawn`, e.g. for the `signal` option.
-//    Then, `subprocess.pid` is set and `close` is always emitted.
-const waitForExit = async subprocess => {
-	try {
-		await once(subprocess, 'close');
-	} catch (error) {
-		if (subprocess.pid !== undefined) {
-			await Promise.allSettled([once(subprocess, 'close')]);
-		}
+const initResult = () => ({stdout: '', stderr: ''});
 
-		throw error;
-	}
-};
+const getResultError = ({error, result, instance, start, command}) => Object.assign(
+	getErrorInstance(error, command),
+	getErrorOutput(instance),
+	getOutput(result, command, start),
+);
 
 const bufferOutput = async (stream, result, streamName) => {
 	if (!stream) {
@@ -144,7 +165,6 @@ const bufferOutput = async (stream, result, streamName) => {
 	}
 
 	stream.setEncoding('utf8');
-	result[streamName] = '';
 	stream.on('data', chunk => {
 		result[streamName] += chunk;
 	});
@@ -163,7 +183,7 @@ const stripNewline = input => input?.at(-1) === '\n'
 	: input;
 
 const getErrorOutput = ({exitCode, signalCode}) => ({
-	// `exitCode` can be a negative number (`errno`) when the `error` event is emitted on the subprocess
+	// `exitCode` can be a negative number (`errno`) when the `error` event is emitted on the `instance`
 	...(exitCode === null || exitCode < 1 ? {} : {exitCode}),
 	...(signalCode === null ? {} : {signalName: signalCode}),
 });
@@ -178,6 +198,6 @@ const checkFailure = (command, {exitCode, signalName}) => {
 	}
 };
 
-const getResultError = (error, command) => error?.message.startsWith('Command ')
+const getErrorInstance = (error, command) => error?.message.startsWith('Command ')
 	? error
 	: new Error(`Command failed: ${command}`, {cause: error});

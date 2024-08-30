@@ -30,7 +30,9 @@ const getNext = async iterator => {
 	}
 };
 
-export async function * lineIterator(stream, resultPromise) {
+export async function * lineIterator(instancePromise, streamName, resultPromise) {
+	const instance = await instancePromise;
+	const stream = instance[streamName];
 	if (!stream) {
 		return;
 	}
