@@ -1,9 +1,8 @@
 import {spawn} from 'node:child_process';
-import {once} from 'node:events';
+import {once, on} from 'node:events';
 import {stripVTControlCharacters} from 'node:util';
 import path from 'node:path';
 import process from 'node:process';
-import {finished} from 'node:stream/promises';
 import {fileURLToPath} from 'node:url';
 import {lineIterator, combineAsyncIterators} from './iterable.js';
 import {getForcedShell, escapeArguments} from './windows.js';
@@ -124,16 +123,16 @@ const getResult = async (instancePromise, input, start, command) => {
 	const instance = await instancePromise;
 	useInput(instance, input);
 	const result = initResult();
-	const onExit = once(instance, 'close');
-	const onStdoutDone = bufferOutput(instance.stdout, result, 'stdout');
-	const onStderrDone = bufferOutput(instance.stderr, result, 'stderr');
+	const onClose = once(instance, 'close');
+	bufferOutput(instance.stdout, result, 'stdout');
+	bufferOutput(instance.stderr, result, 'stderr');
 
 	try {
-		await Promise.all([onExit, onStdoutDone, onStderrDone]);
+		await Promise.race([onClose, ...onStreamErrors(instance)]);
 		checkFailure(command, getErrorOutput(instance));
 		return getOutput(result, command, start);
 	} catch (error) {
-		await Promise.allSettled([onExit, onStdoutDone, onStderrDone]);
+		await Promise.allSettled([onClose]);
 		throw getResultError({
 			error,
 			result,
@@ -152,17 +151,27 @@ const useInput = (instance, input) => {
 
 const initResult = () => ({stdout: '', stderr: ''});
 
-const bufferOutput = async (stream, result, streamName) => {
-	if (!stream) {
-		return;
+const bufferOutput = (stream, result, streamName) => {
+	if (stream) {
+		stream.setEncoding('utf8');
+		stream.on('data', chunk => {
+			result[streamName] += chunk;
+		});
 	}
-
-	stream.setEncoding('utf8');
-	stream.on('data', chunk => {
-		result[streamName] += chunk;
-	});
-	await finished(stream, {cleanup: true});
 };
+
+const onStreamErrors = ({stdio}) => stdio.filter(Boolean).map(stream => onStreamError(stream));
+
+const onStreamError = async stream => {
+	for await (const [error] of on(stream, 'error')) {
+		if (!IGNORED_CODES.has(error?.code)) {
+			throw error;
+		}
+	}
+};
+
+// Ignore errors that are due to closing errors when the subprocesses exit normally, or due to piping
+const IGNORED_CODES = new Set(['ERR_STREAM_PREMATURE_CLOSE', 'EPIPE']);
 
 const getResultError = ({error, result, instance, start, command}) => Object.assign(
 	getErrorInstance(error, command),
