@@ -46,6 +46,9 @@ console.log("${testString}");`);
 const localBinary = ['ava', ['--version']];
 const nonExistentCommand = 'non-existent-command';
 
+const commandEvalFailStart = 'node -e';
+const messageEvalFailStart = `Command failed: ${commandEvalFailStart}`;
+
 const VERSION_REGEXP = /^\d+\.\d+\.\d+$/;
 
 test('Can pass options.argv0', async t => {
@@ -164,7 +167,7 @@ test('Error on invalid child_process options', async t => {
 	const {exitCode, signalName, message, cause} = await t.throwsAsync(nanoSpawn(...nodePrintStdout, {detached: 'true'}));
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
-	t.true(message.startsWith('Command failed: node -e'));
+	t.true(message.startsWith(messageEvalFailStart));
 	t.true(cause.message.includes('options.detached'));
 	t.false(cause.message.includes('Command'));
 });
@@ -224,7 +227,7 @@ test('Error on stdin', async t => {
 	const {exitCode, signalName, message, cause} = await t.throwsAsync(promise);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
-	t.true(message.startsWith('Command failed: node -e'));
+	t.true(message.startsWith(messageEvalFailStart));
 	t.is(cause, error);
 });
 
@@ -236,7 +239,7 @@ test('Error on stdout', async t => {
 	const {exitCode, signalName, message, cause} = await t.throwsAsync(promise);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
-	t.true(message.startsWith('Command failed: node -e'));
+	t.true(message.startsWith(messageEvalFailStart));
 	t.is(cause, error);
 });
 
@@ -248,7 +251,7 @@ test('Error on stderr', async t => {
 	const {exitCode, signalName, message, cause} = await t.throwsAsync(promise);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
-	t.true(message.startsWith('Command failed: node -e'));
+	t.true(message.startsWith(messageEvalFailStart));
 	t.is(cause, error);
 });
 
