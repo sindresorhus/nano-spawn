@@ -30,6 +30,10 @@ const arrayFromAsync = async asyncIterable => {
 	return chunks;
 };
 
+const getIterable = (promise, promiseType) => promiseType === ''
+	? promise
+	: promise[promiseType];
+
 const testString = 'test';
 const secondTestString = 'secondTest';
 const thirdTestString = 'thirdTest';
@@ -500,6 +504,16 @@ test('result.output is an empty string if options.stdout and options.stderr "ign
 	t.is(output, '');
 });
 
+const testIterationLate = async (t, promiseType) => {
+	const promise = nanoSpawn(...nodePrintStdout);
+	await promise.nodeChildProcess;
+	await t.throwsAsync(arrayFromAsync(getIterable(promise, promiseType)), {message: /must be iterated right away/});
+};
+
+test('promise.stdout must be called right away', testIterationLate, 'stdout');
+test('promise.stderr must be called right away', testIterationLate, 'stderr');
+test('promise[Symbol.asyncIterator] must be called right away', testIterationLate, '');
+
 test('promise[Symbol.asyncIterator] is line-wise', async t => {
 	const promise = nanoSpawn('node', ['--input-type=module', '-e', `
 import {setTimeout} from 'node:timers/promises';
@@ -628,10 +642,8 @@ test('Handles promise.stderr error in promise[Symbol.asyncIterator]', testStream
 
 // eslint-disable-next-line max-params
 const iterateOnOutput = async (t, promise, state, cause, shouldThrow, promiseType) => {
-	const iterable = promiseType === '' ? promise : promise[promiseType];
-
 	// eslint-disable-next-line no-unreachable-loop
-	for await (const line of iterable) {
+	for await (const line of getIterable(promise, promiseType)) {
 		t.is(line, testString);
 
 		globalThis.setTimeout(async () => {
