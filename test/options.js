@@ -10,7 +10,7 @@ import {
 	fixturesPath,
 	nodeDirectory,
 } from './helpers/main.js';
-import {testString} from './helpers/arguments.js';
+import {testString, secondTestString} from './helpers/arguments.js';
 import {
 	assertNonExistent,
 	assertWindowsNonExistent,
@@ -45,6 +45,14 @@ const testArgv0 = async (t, shell) => {
 test('Can pass options.argv0', testArgv0, false);
 test('Can pass options.argv0, shell', testArgv0, true);
 
+const testCwd = async (t, cwd) => {
+	const {stdout} = await nanoSpawn(...nodePrint('process.cwd()'), {cwd});
+	t.is(stdout, fixturesPath.replace(/[\\/]$/, ''));
+};
+
+test('Can pass options.cwd string', testCwd, fixturesPath);
+test('Can pass options.cwd URL', testCwd, FIXTURES_URL);
+
 const testStdOption = async (t, optionName) => {
 	const promise = nanoSpawn(...nodePrintStdout, {[optionName]: 'ignore'});
 	const subprocess = await promise.nodeChildProcess;
@@ -56,13 +64,24 @@ test('Can pass options.stdin', testStdOption, 'stdin');
 test('Can pass options.stdout', testStdOption, 'stdout');
 test('Can pass options.stderr', testStdOption, 'stderr');
 
+const testStdOptionDefault = async (t, optionName) => {
+	const promise = nanoSpawn(...nodePrintStdout);
+	const subprocess = await promise.nodeChildProcess;
+	t.not(subprocess[optionName], null);
+	await promise;
+};
+
+test('options.stdin defaults to "pipe"', testStdOptionDefault, 'stdin');
+test('options.stdout defaults to "pipe"', testStdOptionDefault, 'stdout');
+test('options.stderr defaults to "pipe"', testStdOptionDefault, 'stderr');
+
 test('Can pass options.stdio array', async t => {
 	const promise = nanoSpawn(...nodePrintStdout, {stdio: ['ignore', 'pipe', 'pipe', 'pipe']});
 	const {stdin, stdout, stderr, stdio} = await promise.nodeChildProcess;
 	t.is(stdin, null);
 	t.not(stdout, null);
 	t.not(stderr, null);
-	t.not(stdio[3], null);
+	t.is(stdio.length, 4);
 	await promise;
 });
 
@@ -76,29 +95,23 @@ test('Can pass options.stdio string', async t => {
 	await promise;
 });
 
-test('options.stdio array has priority over options.stdout', async t => {
-	const promise = nanoSpawn(...nodePrintStdout, {stdio: ['pipe', 'pipe', 'pipe'], stdout: 'ignore'});
+const testStdioPriority = async (t, stdio) => {
+	const promise = nanoSpawn(...nodePrintStdout, {stdio, stdout: 'ignore'});
 	const {stdout} = await promise.nodeChildProcess;
 	t.not(stdout, null);
 	await promise;
-});
+};
 
-test('options.stdio string has priority over options.stdout', async t => {
-	const promise = nanoSpawn(...nodePrintStdout, {stdio: 'pipe', stdout: 'ignore'});
-	const {stdout} = await promise.nodeChildProcess;
-	t.not(stdout, null);
-	await promise;
-});
+test('options.stdio array has priority over options.stdout', testStdioPriority, ['pipe', 'pipe', 'pipe']);
+test('options.stdio string has priority over options.stdout', testStdioPriority, 'pipe');
 
-test('options.stdin can be {string: string}', async t => {
-	const {stdout} = await nanoSpawn(...nodePassThrough, {stdin: {string: testString}});
+const testInput = async (t, options) => {
+	const {stdout} = await nanoSpawn(...nodePassThrough, options);
 	t.is(stdout, testString);
-});
+};
 
-test('options.stdio[0] can be {string: string}', async t => {
-	const {stdout} = await nanoSpawn(...nodePassThrough, {stdio: [{string: testString}, 'pipe', 'pipe']});
-	t.is(stdout, testString);
-});
+test('options.stdin can be {string: string}', testInput, {stdin: {string: testString}});
+test('options.stdio[0] can be {string: string}', testInput, {stdio: [{string: testString}, 'pipe', 'pipe']});
 
 const testLocalBinaryExec = async (t, cwd) => {
 	const {stdout} = await nanoSpawn(...localBinary, {preferLocal: true, cwd});
@@ -140,6 +153,11 @@ test('options.preferLocal true uses options.env when empty', async t => {
 	} else {
 		assertUnixNotFound(t, error, localBinaryCommand);
 	}
+});
+
+test('options.preferLocal true can use an empty PATH', async t => {
+	const {stdout} = await nanoSpawn(process.execPath, ['--version'], {preferLocal: true, env: {PATH: undefined, Path: undefined}});
+	t.is(stdout, process.version);
 });
 
 test('options.preferLocal true does not add node_modules/.bin if already present', async t => {
@@ -185,6 +203,18 @@ test('options.preferLocal true can pass arguments to local npm binaries, ,', tes
 test('options.preferLocal true can pass arguments to local npm binaries, space', testLocalBinary, ' ');
 test('options.preferLocal true can pass arguments to local npm binaries, *', testLocalBinary, '*');
 test('options.preferLocal true can pass arguments to local npm binaries, ?', testLocalBinary, '?');
+
+if (!isWindows) {
+	test('options.preferLocal true prefer local binaries over global ones', async t => {
+		const {stdout} = await nanoSpawn('git', {preferLocal: true, cwd: FIXTURES_URL});
+		t.is(stdout, testString);
+	});
+
+	test('options.preferLocal true prefer subdirectories over parent directories', async t => {
+		const {stdout} = await nanoSpawn('git', {preferLocal: true, cwd: new URL('subdir', FIXTURES_URL)});
+		t.is(stdout, secondTestString);
+	});
+}
 
 test('Can run global npm binaries', async t => {
 	const {stdout} = await nanoSpawn('npm', ['--version']);

@@ -3,7 +3,7 @@ import {red} from 'yoctocolors';
 import nanoSpawn from '../source/index.js';
 import {testString} from './helpers/arguments.js';
 import {assertDurationMs} from './helpers/assert.js';
-import {nodePrint, nodePrintStdout} from './helpers/commands.js';
+import {nodePrint, nodePrintFail, nodePrintStdout} from './helpers/commands.js';
 
 test('result.command does not quote normal arguments', async t => {
 	const {command} = await nanoSpawn('node', ['--version']);
@@ -27,6 +27,6 @@ test('result.durationMs is set', async t => {
 });
 
 test('error.durationMs is set', async t => {
-	const {durationMs} = await t.throwsAsync(nanoSpawn('node', ['--unknown']));
+	const {durationMs} = await t.throwsAsync(nanoSpawn(...nodePrintFail));
 	assertDurationMs(t, durationMs);
 });
