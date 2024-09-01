@@ -41,15 +41,14 @@ const mIsExe = async (file, cwd, PATH) => {
 			.flatMap(extension =>
 				[cwd, ...parts].map(part => `${path.resolve(part, file)}${extension}`))
 			.map(async possibleFile => {
-				let fileStat;
 				try {
-					fileStat = await stat(possibleFile);
-				} catch {}
-
-				if (fileStat?.isFile()) {
-					// eslint-disable-next-line no-throw-literal
-					throw 0;
+					await stat(possibleFile);
+				} catch {
+					return;
 				}
+
+				// eslint-disable-next-line no-throw-literal
+				throw 0;
 			}));
 	} catch {
 		return true;
