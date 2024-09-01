@@ -48,7 +48,7 @@ export const combineAsyncIterators = async function * (...iterators) {
 			}
 		}
 	} finally {
-		await Promise.all(iterators.map(iterator => iterator.return?.()));
+		await Promise.all(iterators.map(iterator => iterator.return()));
 	}
 };
 
@@ -56,7 +56,6 @@ const getNext = async iterator => {
 	try {
 		return await iterator.next();
 	} catch (error) {
-		await iterator.throw?.(error);
-		throw error;
+		await iterator.throw(error);
 	}
 };
