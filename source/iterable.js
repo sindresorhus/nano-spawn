@@ -7,13 +7,14 @@ export const lineIterator = async function * (resultPromise, {state}, streamName
 	}
 
 	state.isIterating = true;
-	const instance = await resultPromise.nodeChildProcess;
-	const stream = instance[streamName];
-	if (!stream) {
-		return;
-	}
 
 	try {
+		const instance = await resultPromise.nodeChildProcess;
+		const stream = instance[streamName];
+		if (!stream) {
+			return;
+		}
+
 		let buffer = '';
 		for await (const chunk of stream.iterator({destroyOnReturn: false})) {
 			const lines = `${buffer}${chunk}`.split(/\r?\n/);
