@@ -26,6 +26,8 @@ Despite the small size, this is packed with some essential features:
 - Simpler syntax to set [environment variables](#optionsenv) or [`stdin`/`stdout`/`stderr`](#optionsstdin-optionsstdout-optionsstderr).
 - Compute the command [duration](#resultdurationms).
 
+For additional features, please check out [Execa](#execa).
+
 ## Install
 
 ```sh
