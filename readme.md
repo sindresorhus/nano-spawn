@@ -13,7 +13,7 @@
 No dependencies. Small package size: ![npm package minzipped size](https://img.shields.io/bundlejs/size/nano-spawn) [![Install size](https://packagephobia.com/badge?p=nano-spawn)](https://packagephobia.com/result?p=nano-spawn)
 
 Despite the small size, this is packed with some essential features:
-- [Promise-based](#nanospawnfile-arguments-options) interface.
+- [Promise-based](#spawnfile-arguments-options-default-export) interface.
 - [Iterate](#subprocesssymbolasynciterator) over the output lines.
 - [Pipe](#subprocesspipefile-arguments-options) multiple subprocesses and retrieve [intermediate results](#resultpipedfrom).
 - Execute [locally installed binaries](#optionspreferlocal) without `npx`.
@@ -22,7 +22,7 @@ Despite the small size, this is packed with some essential features:
 - Get [interleaved output](#resultoutput) from stdout and stderr similar to what is printed on the terminal.
 - Strip [unnecessary newlines](#resultstdout).
 - Pass strings as [`stdin` input](#optionsstdin-optionsstdout-optionsstderr) to the subprocess.
-- Preserve the current [Node.js version and flags](#nanospawnfile-arguments-options).
+- Preserve the current [Node.js version and flags](#spawnfile-arguments-options-default-export).
 - Simpler syntax to set [environment variables](#optionsenv) or [`stdin`/`stdout`/`stderr`](#optionsstdin-optionsstdout-optionsstderr).
 - Compute the command [duration](#resultdurationms).
 
@@ -91,7 +91,7 @@ If `file` is `'node'`, the current Node.js version and [flags](https://nodejs.or
 
 ##### options.stdio, options.shell, options.timeout, options.signal, options.cwd, options.killSignal, options.serialization, options.detached, options.uid, options.gid, options.windowsVerbatimArguments, options.windowsHide, options.argv0
 
-All [`child_process.spawn()` options](https://nodejs.org/api/child_process.html#child_processspawncommand-args-options) can be passed to `nanoSpawn()`.
+All [`child_process.spawn()` options](https://nodejs.org/api/child_process.html#child_processspawncommand-args-options) can be passed to [`spawn()`](#spawnfile-arguments-options-default-export).
 
 ##### options.env
 
@@ -122,7 +122,7 @@ Subprocess's standard [input](https://en.wikipedia.org/wiki/Standard_streams#Sta
 
 #### Subprocess
 
-Subprocess started by [`nanoSpawn()`](#nanospawnfile-arguments-options).
+Subprocess started by [`spawn()`](#spawnfile-arguments-options-default-export).
 
 ##### await subprocess
 
@@ -165,7 +165,7 @@ Similar to the `|` symbol in shells. [Pipe](https://nodejs.org/api/stream.html#r
 
 This resolves with that second subprocess's [result](#result). If either subprocess is rejected, this is rejected with that subprocess's [error](#subprocesserror) instead.
 
-This follows the same syntax as [`nanoSpawn(file, arguments?, options?)`](#nanospawnfile-arguments-options). It can be done multiple times in a row.
+This follows the same syntax as [`spawn(file, arguments?, options?)`](#spawnfile-arguments-options-default-export). It can be done multiple times in a row.
 
 ##### await subprocess.nodeChildProcess
 

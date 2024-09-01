@@ -153,7 +153,7 @@ export type SubprocessError = Error & Result & {
 };
 
 /**
-Subprocess started by `nanoSpawn()`.
+Subprocess started by `spawn()`.
 
 A subprocess is a promise that is either resolved with a successful `result` object or rejected with a `subprocessError`.
 
@@ -186,7 +186,7 @@ export type Subprocess = Promise<Result> & AsyncIterable<string> & {
 
 	This resolves with that second subprocess's result. If either subprocess is rejected, this is rejected with that subprocess's error instead.
 
-	This follows the same syntax as `nanoSpawn(file, arguments?, options?)`. It can be done multiple times in a row.
+	This follows the same syntax as `spawn(file, arguments?, options?)`. It can be done multiple times in a row.
 
 	@param file - The program/script to execute
 	@param arguments - Arguments to pass to `file` on execution.
@@ -239,5 +239,5 @@ for await (const line of spawn('ls', ['--oneline'])) {
 //=> …
 ```
 */
-export default function nanoSpawn(file: string, arguments?: readonly string[], options?: Options): Subprocess;
-export default function nanoSpawn(file: string, options?: Options): Subprocess;
+export default function spawn(file: string, arguments?: readonly string[], options?: Options): Subprocess;
+export default function spawn(file: string, options?: Options): Subprocess;
