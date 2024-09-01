@@ -6,7 +6,7 @@ type StdinOption = StdioOption | {readonly string?: string};
 /**
 Options passed to `nano-spawn`.
 
-All `child_process.spawn()` options can be passed to `nanoSpawn()`. Please see [the `node:child_process` documentation](https://nodejs.org/api/child_process.html#child_processspawncommand-args-options) for a description of each option.
+All [`child_process.spawn()` options](https://nodejs.org/api/child_process.html#child_processspawncommand-args-options) can be passed.
 */
 export type Options = Omit<SpawnOptions, 'env' | 'stdio'> & Readonly<Partial<{
 	/**
