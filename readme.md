@@ -261,6 +261,16 @@ This package fixes several cross-platform issues with [`node:child_process`](htt
 
 `nano-spawn`'s main goal is to be small, yet useful. Nonetheless, depending on your use case, there are other ways to run subprocesses in Node.js.
 
+### Execa
+
+[Execa](https://github.com/sindresorhus/execa) is a similar package: it provides the same features, but more. It is also built on top of `node:child_process`, and is maintained by the [same people](#maintainers).
+
+On one hand, it has a bigger size: [![Install size](https://packagephobia.com/badge?p=execa)](https://packagephobia.com/result?p=execa)
+
+On the other hand, it provides a bunch of additional features: [scripts](https://github.com/sindresorhus/execa/blob/main/docs/scripts.md), [template string syntax](https://github.com/sindresorhus/execa/blob/main/docs/execution.md#template-string-syntax), [synchronous execution](https://github.com/sindresorhus/execa/blob/main/docs/execution.md#synchronous-execution), [file input/output](https://github.com/sindresorhus/execa/blob/main/docs/output.md#file-output), [binary input/output](https://github.com/sindresorhus/execa/blob/main/docs/binary.md), [advanced piping](https://github.com/sindresorhus/execa/blob/main/docs/pipe.md), [verbose mode](https://github.com/sindresorhus/execa/blob/main/docs/debugging.md#verbose-mode), [graceful](https://github.com/sindresorhus/execa/blob/main/docs/termination.md#graceful-termination) or [forceful termination](https://github.com/sindresorhus/execa/blob/main/docs/termination.md#forceful-termination), [IPC](https://github.com/sindresorhus/execa/blob/main/docs/ipc.md), [shebangs on Windows](https://github.com/sindresorhus/execa/blob/main/docs/windows.md), [and much more](https://github.com/sindresorhus/nano-spawn/issues/14). Also, it is [very widely used](https://github.com/sindresorhus/execa/network/dependents) and [battle-tested](https://github.com/sindresorhus/execa/graphs/contributors).
+
+We recommend using Execa in most cases, unless your environment requires using small packages (for example, in a library or in a serverless function). It is definitely the best option inside scripts, servers, or apps.
+
 ### `node:child_process`
 
 `nano-spawn` is built on top of the [`node:child_process`](https://nodejs.org/api/child_process.html) core module.
@@ -275,16 +285,6 @@ const pExecFile = promisify(execFile);
 
 const result = await pExecFile('npm', ['run', 'build']);
 ```
-
-### Execa
-
-[Execa](https://github.com/sindresorhus/execa) is a similar package: it provides the same features, but more. It is also built on top of `node:child_process`, and is maintained by the [same people](#maintainers).
-
-On one hand, it has a bigger size: [![Install size](https://packagephobia.com/badge?p=execa)](https://packagephobia.com/result?p=execa)
-
-On the other hand, it provides a bunch of additional features: [scripts](https://github.com/sindresorhus/execa/blob/main/docs/scripts.md), [template string syntax](https://github.com/sindresorhus/execa/blob/main/docs/execution.md#template-string-syntax), [synchronous execution](https://github.com/sindresorhus/execa/blob/main/docs/execution.md#synchronous-execution), [file input/output](https://github.com/sindresorhus/execa/blob/main/docs/output.md#file-output), [binary input/output](https://github.com/sindresorhus/execa/blob/main/docs/binary.md), [advanced piping](https://github.com/sindresorhus/execa/blob/main/docs/pipe.md), [verbose mode](https://github.com/sindresorhus/execa/blob/main/docs/debugging.md#verbose-mode), [graceful](https://github.com/sindresorhus/execa/blob/main/docs/termination.md#graceful-termination) or [forceful termination](https://github.com/sindresorhus/execa/blob/main/docs/termination.md#forceful-termination), [IPC](https://github.com/sindresorhus/execa/blob/main/docs/ipc.md), [shebangs on Windows](https://github.com/sindresorhus/execa/blob/main/docs/windows.md), [and much more](https://github.com/sindresorhus/nano-spawn/issues/14). Also, it is [very widely used](https://github.com/sindresorhus/execa/network/dependents) and [battle-tested](https://github.com/sindresorhus/execa/graphs/contributors).
-
-We recommend using Execa in most cases, unless your environment requires using small packages (for example, in a library or in a serverless function). It is definitely the best option inside scripts, servers, or apps.
 
 ## Maintainers
 
