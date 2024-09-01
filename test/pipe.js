@@ -14,6 +14,7 @@ import {
 	testString,
 	testUpperCase,
 	testDoubleUpperCase,
+	testDouble,
 } from './helpers/arguments.js';
 import {
 	assertDurationMs,
@@ -334,4 +335,21 @@ process.stdout.on("error", () => {
 	const {stdout, output} = await subprocess;
 	t.is(stdout, '');
 	t.is(output, '');
+});
+
+test('.pipe() one source to multiple destinations', async t => {
+	const first = nanoSpawn(...nodePrintStdout);
+	const [firstResult, secondResult, thirdResult] = await Promise.all([
+		first,
+		first.pipe(...nodeToUpperCase),
+		first.pipe(...nodeDouble),
+	]);
+	t.is(secondResult.pipedFrom, firstResult);
+	t.is(thirdResult.pipedFrom, firstResult);
+	t.is(firstResult.stdout, testString);
+	t.is(firstResult.output, firstResult.stdout);
+	t.is(secondResult.stdout, testUpperCase);
+	t.is(secondResult.output, secondResult.stdout);
+	t.is(thirdResult.stdout, testDouble);
+	t.is(thirdResult.output, thirdResult.stdout);
 });
