@@ -4,9 +4,15 @@ import process from 'node:process';
 import {getForcedShell, escapeArguments} from './windows.js';
 import {getResultError} from './result.js';
 
-export const spawnSubprocess = async (rawFile, rawArguments, options, context) => {
+export const spawnSubprocess = async (file, commandArguments, options, context) => {
 	try {
-		const [file, commandArguments] = handleNode(rawFile, rawArguments);
+		// When running `node`, keep the current Node version and CLI flags.
+		// Not applied with file paths to `.../node` since those indicate a clear intent to use a specific Node version.
+		// Does not work with shebangs, but those don't work cross-platform anyway.
+		[file, commandArguments] = ['node', 'node.exe'].includes(file.toLowerCase())
+			? [process.execPath, [...process.execArgv.filter(flag => !flag.startsWith('--inspect')), ...commandArguments]]
+			: [file, commandArguments];
+
 		const forcedShell = await getForcedShell(file, options);
 		const instance = spawn(...escapeArguments(file, commandArguments, forcedShell), {
 			...options,
@@ -27,27 +33,15 @@ export const spawnSubprocess = async (rawFile, rawArguments, options, context) =
 	}
 };
 
-// When running `node`, keep the current Node version and CLI flags.
-// Not applied with file paths to `.../node` since those indicate a clear intent to use a specific Node version.
-// Does not work with shebangs, but those don't work cross-platform anyway.
-const handleNode = (rawFile, rawArguments) => rawFile.toLowerCase().replace(/\.exe$/, '') === 'node'
-	? [process.execPath, [...process.execArgv.filter(flag => !flag.startsWith('--inspect')), ...rawArguments]]
-	: [rawFile, rawArguments];
-
 const bufferOutput = (stream, {state}, streamName) => {
-	if (!stream) {
-		return;
-	}
-
-	stream.setEncoding('utf8');
-	if (state.isIterating) {
-		return;
-	}
-
-	state.isIterating = false;
-	stream.on('data', chunk => {
-		for (const outputName of [streamName, 'output']) {
-			state[outputName] += chunk;
+	if (stream) {
+		stream.setEncoding('utf8');
+		if (!state.isIterating) {
+			state.isIterating = false;
+			stream.on('data', chunk => {
+				state[streamName] += chunk;
+				state.output += chunk;
+			});
 		}
-	});
+	}
 };
