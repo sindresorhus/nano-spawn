@@ -10,7 +10,7 @@ import getNode from 'get-node';
 import pathKey from 'path-key';
 import {temporaryWriteTask} from 'tempy';
 import {red} from 'yoctocolors';
-import nanoSpawn from './index.js';
+import nanoSpawn from '../source/index.js';
 
 const isLinux = process.platform === 'linux';
 const isWindows = process.platform === 'win32';
@@ -1166,7 +1166,7 @@ const testLocalBinaryExec = async (t, cwd) => {
 };
 
 test('options.preferLocal true runs local npm binaries', testLocalBinaryExec, undefined);
-test('options.preferLocal true runs local npm binaries with options.cwd string', testLocalBinaryExec, './fixtures');
+test('options.preferLocal true runs local npm binaries with options.cwd string', testLocalBinaryExec, fixturesPath);
 test('options.preferLocal true runs local npm binaries with options.cwd URL', testLocalBinaryExec, FIXTURES_URL);
 
 if (!isWindows) {
