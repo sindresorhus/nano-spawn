@@ -1,5 +1,5 @@
 import test from 'ava';
-import nanoSpawn from '../source/index.js';
+import spawn from '../source/index.js';
 import {arrayFromAsync, destroySubprocessStream, writeMultibyte} from './helpers/main.js';
 import {
 	testString,
@@ -26,7 +26,7 @@ const getIterable = (subprocess, iterableType) => iterableType === ''
 	: subprocess[iterableType];
 
 test('subprocess.stdout can be iterated', async t => {
-	const subprocess = nanoSpawn(...nodePrintStdout);
+	const subprocess = spawn(...nodePrintStdout);
 	const lines = await arrayFromAsync(subprocess.stdout);
 	t.deepEqual(lines, [testString]);
 	const {stdout, output} = await subprocess;
@@ -35,7 +35,7 @@ test('subprocess.stdout can be iterated', async t => {
 });
 
 test('subprocess.stderr can be iterated', async t => {
-	const subprocess = nanoSpawn(...nodePrintStderr);
+	const subprocess = spawn(...nodePrintStderr);
 	const lines = await arrayFromAsync(subprocess.stderr);
 	t.deepEqual(lines, [testString]);
 	const {stderr, output} = await subprocess;
@@ -44,7 +44,7 @@ test('subprocess.stderr can be iterated', async t => {
 });
 
 test('subprocess[Symbol.asyncIterator] can be iterated', async t => {
-	const subprocess = nanoSpawn(...nodeEval(`console.log("${testString}");
+	const subprocess = spawn(...nodeEval(`console.log("${testString}");
 console.log("${secondTestString}");
 console.error("${thirdTestString}");
 console.error("${fourthTestString}");`));
@@ -60,7 +60,7 @@ console.error("${fourthTestString}");`));
 
 test.serial('subprocess iteration can be interleaved', async t => {
 	const length = 10;
-	const subprocess = nanoSpawn('node', ['--input-type=module', '-e', `
+	const subprocess = spawn('node', ['--input-type=module', '-e', `
 import {setTimeout} from 'node:timers/promises';
 
 for (let index = 0; index < ${length}; index += 1) {
@@ -80,7 +80,7 @@ for (let index = 0; index < ${length}; index += 1) {
 });
 
 test('subprocess.stdout has no iterations if options.stdout "ignore"', async t => {
-	const subprocess = nanoSpawn(...nodePrintBoth, {stdout: 'ignore'});
+	const subprocess = spawn(...nodePrintBoth, {stdout: 'ignore'});
 	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(subprocess.stdout), arrayFromAsync(subprocess.stderr)]);
 	t.deepEqual(stdoutLines, []);
 	t.deepEqual(stderrLines, [secondTestString]);
@@ -91,7 +91,7 @@ test('subprocess.stdout has no iterations if options.stdout "ignore"', async t =
 });
 
 test('subprocess.stderr has no iterations if options.stderr "ignore"', async t => {
-	const subprocess = nanoSpawn(...nodePrintBoth, {stderr: 'ignore'});
+	const subprocess = spawn(...nodePrintBoth, {stderr: 'ignore'});
 	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(subprocess.stdout), arrayFromAsync(subprocess.stderr)]);
 	t.deepEqual(stdoutLines, [testString]);
 	t.deepEqual(stderrLines, []);
@@ -102,7 +102,7 @@ test('subprocess.stderr has no iterations if options.stderr "ignore"', async t =
 });
 
 test('subprocess[Symbol.asyncIterator] has iterations if only options.stdout "ignore"', async t => {
-	const subprocess = nanoSpawn(...nodePrintBoth, {stdout: 'ignore'});
+	const subprocess = spawn(...nodePrintBoth, {stdout: 'ignore'});
 	const lines = await arrayFromAsync(subprocess);
 	t.deepEqual(lines, [secondTestString]);
 	const {stdout, stderr, output} = await subprocess;
@@ -112,7 +112,7 @@ test('subprocess[Symbol.asyncIterator] has iterations if only options.stdout "ig
 });
 
 test('subprocess[Symbol.asyncIterator] has iterations if only options.stderr "ignore"', async t => {
-	const subprocess = nanoSpawn(...nodePrintBoth, {stderr: 'ignore'});
+	const subprocess = spawn(...nodePrintBoth, {stderr: 'ignore'});
 	const lines = await arrayFromAsync(subprocess);
 	t.deepEqual(lines, [testString]);
 	const {stdout, stderr, output} = await subprocess;
@@ -122,7 +122,7 @@ test('subprocess[Symbol.asyncIterator] has iterations if only options.stderr "ig
 });
 
 test('subprocess[Symbol.asyncIterator] has no iterations if only options.stdout + options.stderr "ignore"', async t => {
-	const subprocess = nanoSpawn(...nodePrintBoth, {stdout: 'ignore', stderr: 'ignore'});
+	const subprocess = spawn(...nodePrintBoth, {stdout: 'ignore', stderr: 'ignore'});
 	const lines = await arrayFromAsync(subprocess);
 	t.deepEqual(lines, []);
 	const {stdout, stderr, output} = await subprocess;
@@ -132,7 +132,7 @@ test('subprocess[Symbol.asyncIterator] has no iterations if only options.stdout 
 });
 
 test('subprocess.stdout has no iterations but waits for the subprocess if options.stdout "ignore"', async t => {
-	const subprocess = nanoSpawn(...nodePrintBothFail, {stdout: 'ignore'});
+	const subprocess = spawn(...nodePrintBothFail, {stdout: 'ignore'});
 	const error = await t.throwsAsync(arrayFromAsync(subprocess.stdout));
 	assertFail(t, error);
 	const promiseError = await t.throwsAsync(subprocess);
@@ -143,7 +143,7 @@ test('subprocess.stdout has no iterations but waits for the subprocess if option
 });
 
 const testIterationLate = async (t, iterableType) => {
-	const subprocess = nanoSpawn(...nodePrintStdout);
+	const subprocess = spawn(...nodePrintStdout);
 	await subprocess.nodeChildProcess;
 	await t.throwsAsync(arrayFromAsync(getIterable(subprocess, iterableType)), {message: /must be iterated right away/});
 };
@@ -153,7 +153,7 @@ test('subprocess.stderr must be called right away', testIterationLate, 'stderr')
 test('subprocess[Symbol.asyncIterator] must be called right away', testIterationLate, '');
 
 test('subprocess[Symbol.asyncIterator] is line-wise', async t => {
-	const subprocess = nanoSpawn('node', ['--input-type=module', '-e', `
+	const subprocess = spawn('node', ['--input-type=module', '-e', `
 import {setTimeout} from 'node:timers/promises';
 
 process.stdout.write("a\\nb\\n");
@@ -164,7 +164,7 @@ process.stderr.write("c\\nd\\n");`]);
 });
 
 const testNewlineIteration = async (t, input, expectedLines) => {
-	const subprocess = nanoSpawn(...nodePrintNoNewline(input));
+	const subprocess = spawn(...nodePrintNoNewline(input));
 	const lines = await arrayFromAsync(subprocess.stdout);
 	t.deepEqual(lines, expectedLines);
 };
@@ -183,7 +183,7 @@ test('subprocess.stdout handles 2 Windows newlines in the middle', testNewlineIt
 test('subprocess.stdout handles 2 Windows newlines at the end', testNewlineIteration, 'a\r\nb\r\n\r\n', ['a', 'b', '']);
 
 test.serial('subprocess.stdout works with multibyte sequences', async t => {
-	const subprocess = nanoSpawn(...nodePassThrough);
+	const subprocess = spawn(...nodePassThrough);
 	writeMultibyte(subprocess);
 	const lines = await arrayFromAsync(subprocess.stdout);
 	t.deepEqual(lines, [multibyteString]);
@@ -193,7 +193,7 @@ test.serial('subprocess.stdout works with multibyte sequences', async t => {
 });
 
 const testStreamIterateError = async (t, streamName) => {
-	const subprocess = nanoSpawn(...nodePrintStdout);
+	const subprocess = spawn(...nodePrintStdout);
 	const cause = new Error(testString);
 	destroySubprocessStream(subprocess, cause, streamName);
 	const error = await t.throwsAsync(arrayFromAsync(subprocess[streamName]));
@@ -208,7 +208,7 @@ test('Handles subprocess.stdout error', testStreamIterateError, 'stdout');
 test('Handles subprocess.stderr error', testStreamIterateError, 'stderr');
 
 const testStreamIterateAllError = async (t, streamName) => {
-	const subprocess = nanoSpawn(...nodePrintStdout);
+	const subprocess = spawn(...nodePrintStdout);
 	const cause = new Error(testString);
 	destroySubprocessStream(subprocess, cause, streamName);
 	const error = await t.throwsAsync(arrayFromAsync(subprocess));
@@ -245,7 +245,7 @@ const iterateOnOutput = async (t, subprocess, state, cause, shouldThrow, iterabl
 };
 
 const testIteration = async (t, shouldThrow, iterableType) => {
-	const subprocess = nanoSpawn(...nodePassThroughPrint);
+	const subprocess = spawn(...nodePassThroughPrint);
 	const state = {done: false};
 	const cause = new Error(testString);
 
@@ -268,7 +268,7 @@ test.serial('subprocess.stdout iteration exception waits for the subprocess succ
 test.serial('subprocess[Symbol.asyncIterator] iteration exception waits for the subprocess success', testIteration, true, '');
 
 const testIterationFail = async (t, shouldThrow, iterableType) => {
-	const subprocess = nanoSpawn(...nodePassThroughPrintFail);
+	const subprocess = spawn(...nodePassThroughPrintFail);
 	const state = {done: false};
 	const cause = new Error(testString);
 	let caughtError;

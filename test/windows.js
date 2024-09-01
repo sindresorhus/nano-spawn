@@ -2,7 +2,7 @@ import process from 'node:process';
 import {fileURLToPath} from 'node:url';
 import test from 'ava';
 import pathKey from 'path-key';
-import nanoSpawn from '../source/index.js';
+import spawn from '../source/index.js';
 import {
 	isWindows,
 	FIXTURES_URL,
@@ -19,7 +19,7 @@ if (isWindows) {
 	});
 
 	const testExe = async (t, shell) => {
-		const {stdout} = await nanoSpawn(process.execPath, ['--version'], {shell});
+		const {stdout} = await spawn(process.execPath, ['--version'], {shell});
 		t.is(stdout, process.version);
 	};
 
@@ -28,17 +28,17 @@ if (isWindows) {
 	test('Can run .exe file, shell', testExe, true);
 
 	test('.exe does not use shell by default', async t => {
-		const {stdout} = await nanoSpawn(...nodePrintArgv0, {argv0: testString});
+		const {stdout} = await spawn(...nodePrintArgv0, {argv0: testString});
 		t.is(stdout, testString);
 	});
 
 	test('.exe can use shell', async t => {
-		const {stdout} = await nanoSpawn(...nodePrintArgv0, {argv0: testString, shell: true});
+		const {stdout} = await spawn(...nodePrintArgv0, {argv0: testString, shell: true});
 		t.is(stdout, process.execPath);
 	});
 
 	const testExeDetection = async (t, execPath) => {
-		const {stdout} = await nanoSpawn(execPath, ['-p', 'process.argv0'], {argv0: testString});
+		const {stdout} = await spawn(execPath, ['-p', 'process.argv0'], {argv0: testString});
 		t.is(stdout, testString);
 	};
 
@@ -48,7 +48,7 @@ if (isWindows) {
 	test('.exe detection with Unix slashes', testExeDetection, process.execPath.replace('\\node.exe', '/node.exe'));
 
 	const testPathValue = async (t, pathValue) => {
-		const {stdout} = await nanoSpawn(...nodePrintArgv0, {argv0: testString, env: {[pathKey()]: pathValue}});
+		const {stdout} = await spawn(...nodePrintArgv0, {argv0: testString, env: {[pathKey()]: pathValue}});
 		t.is(stdout, testString);
 	};
 
@@ -57,7 +57,7 @@ if (isWindows) {
 	test('.exe detection with custom Path and double quoting', testPathValue, `"${nodeDirectory}"`);
 
 	const testCom = async (t, shell) => {
-		const {stdout} = await nanoSpawn('tree.com', [fileURLToPath(FIXTURES_URL), '/f'], {shell});
+		const {stdout} = await spawn('tree.com', [fileURLToPath(FIXTURES_URL), '/f'], {shell});
 		t.true(stdout.includes('spawnecho.cmd'));
 	};
 
@@ -66,7 +66,7 @@ if (isWindows) {
 	test('Can run .com file, shell', testCom, true);
 
 	const testCmd = async (t, shell) => {
-		const {stdout} = await nanoSpawn('spawnecho.cmd', [testString], {cwd: FIXTURES_URL, shell});
+		const {stdout} = await spawn('spawnecho.cmd', [testString], {cwd: FIXTURES_URL, shell});
 		t.is(stdout, testString);
 	};
 
@@ -75,23 +75,23 @@ if (isWindows) {
 	test('Can run .cmd file, shell', testCmd, true);
 
 	test('Memoize .cmd file logic', async t => {
-		await nanoSpawn('spawnecho.cmd', [testString], {cwd: FIXTURES_URL});
-		const {stdout} = await nanoSpawn('spawnecho.cmd', [testString], {cwd: FIXTURES_URL});
+		await spawn('spawnecho.cmd', [testString], {cwd: FIXTURES_URL});
+		const {stdout} = await spawn('spawnecho.cmd', [testString], {cwd: FIXTURES_URL});
 		t.is(stdout, testString);
 	});
 
 	test('Uses PATHEXT by default', async t => {
-		const {stdout} = await nanoSpawn('spawnecho', [testString], {cwd: FIXTURES_URL});
+		const {stdout} = await spawn('spawnecho', [testString], {cwd: FIXTURES_URL});
 		t.is(stdout, testString);
 	});
 
 	test('Uses cwd as string', async t => {
-		const {stdout} = await nanoSpawn('spawnecho', [testString], {cwd: fixturesPath});
+		const {stdout} = await spawn('spawnecho', [testString], {cwd: fixturesPath});
 		t.is(stdout, testString);
 	});
 
 	const testPathExtension = async (t, shell) => {
-		const error = await t.throwsAsync(nanoSpawn('spawnecho', [testString], {
+		const error = await t.throwsAsync(spawn('spawnecho', [testString], {
 			env: {PATHEXT: '.COM'},
 			cwd: FIXTURES_URL,
 			shell,
@@ -105,12 +105,12 @@ if (isWindows) {
 
 	test('Escapes file when setting shell option', async t => {
 		const file = '()[]%0!`';
-		const {stdout} = await nanoSpawn(file, {cwd: FIXTURES_URL});
+		const {stdout} = await spawn(file, {cwd: FIXTURES_URL});
 		t.is(stdout, `${file}\r\n${file}`);
 	});
 
 	const testEscape = async (t, input) => {
-		const {stdout} = await nanoSpawn('spawnecho', [input], {cwd: FIXTURES_URL});
+		const {stdout} = await spawn('spawnecho', [input], {cwd: FIXTURES_URL});
 		t.is(stdout, input);
 	};
 
@@ -161,22 +161,22 @@ if (isWindows) {
 	test('Escapes argument when setting shell option, "(foo|bar>baz|foz)"', testEscape, '"(foo|bar>baz|foz)"');
 
 	test('Cannot run shebangs', async t => {
-		const error = await t.throwsAsync(nanoSpawn('./shebang.js', {cwd: FIXTURES_URL}));
+		const error = await t.throwsAsync(spawn('./shebang.js', {cwd: FIXTURES_URL}));
 		assertWindowsNonExistent(t, error, './shebang.js');
 	});
 } else {
 	test('Can run shebangs', async t => {
-		const {stdout} = await nanoSpawn('./shebang.js', {cwd: FIXTURES_URL});
+		const {stdout} = await spawn('./shebang.js', {cwd: FIXTURES_URL});
 		t.is(stdout, testString);
 	});
 }
 
 test('Can run Bash', async t => {
-	const {stdout} = await nanoSpawn(`echo ${testString}`, {cwd: FIXTURES_URL, shell: 'bash'});
+	const {stdout} = await spawn(`echo ${testString}`, {cwd: FIXTURES_URL, shell: 'bash'});
 	t.is(stdout, testString);
 });
 
 test('Does not double escape shell strings', async t => {
-	const {stdout} = await nanoSpawn('node -p "0"', {shell: true});
+	const {stdout} = await spawn('node -p "0"', {shell: true});
 	t.is(stdout, '0');
 });

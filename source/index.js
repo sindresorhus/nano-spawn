@@ -5,7 +5,7 @@ import {getResult} from './result.js';
 import {handlePipe} from './pipe.js';
 import {lineIterator, combineAsyncIterators} from './iterable.js';
 
-export default function nanoSpawn(file, second, third, previous) {
+export default function spawn(file, second, third, previous) {
 	const [commandArguments = [], options = {}] = Array.isArray(second) ? [second, third] : [[], second];
 	const context = getContext([file, ...commandArguments]);
 	const spawnOptions = getOptions(options);
@@ -21,6 +21,6 @@ export default function nanoSpawn(file, second, third, previous) {
 		stdout,
 		stderr,
 		[Symbol.asyncIterator]: () => combineAsyncIterators(stdout, stderr),
-		pipe: (file, second, third) => nanoSpawn(file, second, third, subprocess),
+		pipe: (file, second, third) => spawn(file, second, third, subprocess),
 	});
 }

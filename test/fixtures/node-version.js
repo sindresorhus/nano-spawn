@@ -1,4 +1,4 @@
 #!/usr/bin/env node
-import nanoSpawn from '../../source/index.js';
+import spawn from '../../source/index.js';
 
-await nanoSpawn('node', ['--version'], {stdout: 'inherit'});
+await spawn('node', ['--version'], {stdout: 'inherit'});

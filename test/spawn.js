@@ -1,7 +1,7 @@
 import process from 'node:process';
 import test from 'ava';
 import getNode from 'get-node';
-import nanoSpawn from '../source/index.js';
+import spawn from '../source/index.js';
 import {isWindows, FIXTURES_URL, writeMultibyte} from './helpers/main.js';
 import {
 	assertWindowsNonExistent,
@@ -15,7 +15,7 @@ const nodeCliFlag = '--jitless';
 const inspectCliFlag = '--inspect-port=8091';
 
 const testNodeFlags = async (t, binaryName, fixtureName, hasFlag) => {
-	const {stdout} = await nanoSpawn(binaryName, [nodeCliFlag, fixtureName], {cwd: FIXTURES_URL});
+	const {stdout} = await spawn(binaryName, [nodeCliFlag, fixtureName], {cwd: FIXTURES_URL});
 	t.is(stdout.includes(nodeCliFlag), hasFlag);
 };
 
@@ -28,7 +28,7 @@ if (isWindows) {
 }
 
 test('Does not keep --inspect* Node flags', async t => {
-	const {stdout} = await nanoSpawn('node', [nodeCliFlag, inspectCliFlag, 'node-flags.js'], {cwd: FIXTURES_URL});
+	const {stdout} = await spawn('node', [nodeCliFlag, inspectCliFlag, 'node-flags.js'], {cwd: FIXTURES_URL});
 	t.true(stdout.includes(nodeCliFlag));
 	t.false(stdout.includes(inspectCliFlag));
 });
@@ -38,12 +38,12 @@ const TEST_NODE_VERSION = '18.0.0';
 test.serial('Keeps Node version', async t => {
 	const {path: nodePath} = await getNode(TEST_NODE_VERSION);
 	t.not(nodePath, process.execPath);
-	const {stdout} = await nanoSpawn(nodePath, ['node-version.js'], {cwd: FIXTURES_URL});
+	const {stdout} = await spawn(nodePath, ['node-version.js'], {cwd: FIXTURES_URL});
 	t.is(stdout, `v${TEST_NODE_VERSION}`);
 });
 
 test('Handles non-existing command', async t => {
-	const error = await t.throwsAsync(nanoSpawn(nonExistentCommand));
+	const error = await t.throwsAsync(spawn(nonExistentCommand));
 
 	if (isWindows) {
 		assertWindowsNonExistent(t, error);
@@ -53,7 +53,7 @@ test('Handles non-existing command', async t => {
 });
 
 test('Handles non-existing command, shell', async t => {
-	const error = await t.throwsAsync(nanoSpawn(nonExistentCommand, {shell: true}));
+	const error = await t.throwsAsync(spawn(nonExistentCommand, {shell: true}));
 
 	if (isWindows) {
 		assertWindowsNonExistent(t, error);
@@ -63,28 +63,28 @@ test('Handles non-existing command, shell', async t => {
 });
 
 test('result.stdout is an empty string if options.stdout "ignore"', async t => {
-	const {stdout, stderr, output} = await nanoSpawn(...nodePrintBoth, {stdout: 'ignore'});
+	const {stdout, stderr, output} = await spawn(...nodePrintBoth, {stdout: 'ignore'});
 	t.is(stdout, '');
 	t.is(stderr, secondTestString);
 	t.is(output, stderr);
 });
 
 test('result.stderr is an empty string if options.stderr "ignore"', async t => {
-	const {stdout, stderr, output} = await nanoSpawn(...nodePrintBoth, {stderr: 'ignore'});
+	const {stdout, stderr, output} = await spawn(...nodePrintBoth, {stderr: 'ignore'});
 	t.is(stdout, testString);
 	t.is(stderr, '');
 	t.is(output, stdout);
 });
 
 test('result.output is an empty string if options.stdout and options.stderr "ignore"', async t => {
-	const {stdout, stderr, output} = await nanoSpawn(...nodePrintBoth, {stdout: 'ignore', stderr: 'ignore'});
+	const {stdout, stderr, output} = await spawn(...nodePrintBoth, {stdout: 'ignore', stderr: 'ignore'});
 	t.is(stdout, '');
 	t.is(stderr, '');
 	t.is(output, '');
 });
 
 test.serial('result.stdout works with multibyte sequences', async t => {
-	const subprocess = nanoSpawn(...nodePassThrough);
+	const subprocess = spawn(...nodePassThrough);
 	writeMultibyte(subprocess);
 	const {stdout, output} = await subprocess;
 	t.is(stdout, multibyteString);

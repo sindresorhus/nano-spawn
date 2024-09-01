@@ -1,5 +1,5 @@
 import test from 'ava';
-import nanoSpawn from '../source/index.js';
+import spawn from '../source/index.js';
 import {
 	isWindows,
 	isLinux,
@@ -28,28 +28,28 @@ import {
 } from './helpers/commands.js';
 
 test('result.exitCode|signalName on success', async t => {
-	const {exitCode, signalName} = await nanoSpawn(...nodePrintStdout);
+	const {exitCode, signalName} = await spawn(...nodePrintStdout);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
 });
 
 test('Error on non-0 exit code', async t => {
-	const error = await t.throwsAsync(nanoSpawn(...nodeEval('process.exit(2)')));
+	const error = await t.throwsAsync(spawn(...nodeEval('process.exit(2)')));
 	assertFail(t, error);
 });
 
 test('Error on signal termination', async t => {
-	const error = await t.throwsAsync(nanoSpawn(...nodeHanging, {timeout: 1}));
+	const error = await t.throwsAsync(spawn(...nodeHanging, {timeout: 1}));
 	assertSigterm(t, error);
 });
 
 test('Error on invalid child_process options', async t => {
-	const error = await t.throwsAsync(nanoSpawn(...nodePrintStdout, earlyErrorOptions));
+	const error = await t.throwsAsync(spawn(...nodePrintStdout, earlyErrorOptions));
 	assertEarlyError(t, error);
 });
 
 test('Error on "error" event before spawn', async t => {
-	const error = await t.throwsAsync(nanoSpawn(nonExistentCommand));
+	const error = await t.throwsAsync(spawn(nonExistentCommand));
 
 	if (isWindows) {
 		assertWindowsNonExistent(t, error);
@@ -59,12 +59,12 @@ test('Error on "error" event before spawn', async t => {
 });
 
 test('Error on "error" event during spawn', async t => {
-	const error = await t.throwsAsync(nanoSpawn(...nodeHanging, {signal: AbortSignal.abort()}));
+	const error = await t.throwsAsync(spawn(...nodeHanging, {signal: AbortSignal.abort()}));
 	assertSigterm(t, error);
 });
 
 test('Error on "error" event during spawn, with iteration', async t => {
-	const subprocess = nanoSpawn(...nodeHanging, {signal: AbortSignal.abort()});
+	const subprocess = spawn(...nodeHanging, {signal: AbortSignal.abort()});
 	const error = await t.throwsAsync(arrayFromAsync(subprocess.stdout));
 	assertSigterm(t, error);
 });
@@ -75,7 +75,7 @@ if (isLinux) {
 	test('Error on "error" event after spawn', async t => {
 		const cause = new Error(testString);
 		const controller = new AbortController();
-		const subprocess = nanoSpawn(...nodeHanging, {signal: controller.signal});
+		const subprocess = spawn(...nodeHanging, {signal: controller.signal});
 		await subprocess.nodeChildProcess;
 		controller.abort(cause);
 		const error = await t.throwsAsync(subprocess);
@@ -84,28 +84,28 @@ if (isLinux) {
 }
 
 test('result.stdout is set', async t => {
-	const {stdout, stderr, output} = await nanoSpawn(...nodePrintStdout);
+	const {stdout, stderr, output} = await spawn(...nodePrintStdout);
 	t.is(stdout, testString);
 	t.is(stderr, '');
 	t.is(output, stdout);
 });
 
 test('result.stderr is set', async t => {
-	const {stdout, stderr, output} = await nanoSpawn(...nodePrintStderr);
+	const {stdout, stderr, output} = await spawn(...nodePrintStderr);
 	t.is(stdout, '');
 	t.is(stderr, testString);
 	t.is(output, stderr);
 });
 
 test('result.output is set', async t => {
-	const {stdout, stderr, output} = await nanoSpawn(...nodePrintBoth);
+	const {stdout, stderr, output} = await spawn(...nodePrintBoth);
 	t.is(stdout, testString);
 	t.is(stderr, secondTestString);
 	t.is(output, `${stdout}\n${stderr}`);
 });
 
 test('error.stdout is set', async t => {
-	const error = await t.throwsAsync(nanoSpawn(...nodeEval(`console.log("${testString}");
+	const error = await t.throwsAsync(spawn(...nodeEval(`console.log("${testString}");
 process.exit(2);`)));
 	assertFail(t, error);
 	t.is(error.stdout, testString);
@@ -114,7 +114,7 @@ process.exit(2);`)));
 });
 
 test('error.stderr is set', async t => {
-	const error = await t.throwsAsync(nanoSpawn(...nodeEval(`console.error("${testString}");
+	const error = await t.throwsAsync(spawn(...nodeEval(`console.error("${testString}");
 process.exit(2);`)));
 	assertFail(t, error);
 	t.is(error.stdout, '');
@@ -123,7 +123,7 @@ process.exit(2);`)));
 });
 
 test('error.output is set', async t => {
-	const error = await t.throwsAsync(nanoSpawn(...nodeEval(`console.log("${testString}");
+	const error = await t.throwsAsync(spawn(...nodeEval(`console.log("${testString}");
 setTimeout(() => {
 	console.error("${secondTestString}");
 	process.exit(2);
@@ -135,7 +135,7 @@ setTimeout(() => {
 });
 
 const testStreamError = async (t, streamName) => {
-	const subprocess = nanoSpawn(...nodePrintStdout);
+	const subprocess = spawn(...nodePrintStdout);
 	const cause = new Error(testString);
 	destroySubprocessStream(subprocess, cause, streamName);
 	const error = await t.throwsAsync(subprocess);
@@ -147,7 +147,7 @@ test('Handles subprocess.stdout error', testStreamError, 'stdout');
 test('Handles subprocess.stderr error', testStreamError, 'stderr');
 
 const testNewline = async (t, input, expectedOutput) => {
-	const {stdout, output} = await nanoSpawn(...nodePrintNoNewline(input));
+	const {stdout, output} = await spawn(...nodePrintNoNewline(input));
 	t.is(stdout, expectedOutput);
 	t.is(output, stdout);
 };
