@@ -1,4 +1,4 @@
-export const lineIterator = async function * (resultPromise, {state}, streamName) {
+export const lineIterator = async function * (subprocess, {state}, streamName) {
 	// Prevent buffering when iterating.
 	// This would defeat one of the main goals of iterating: low memory consumption.
 	if (state.isIterating === false) {
@@ -9,7 +9,7 @@ export const lineIterator = async function * (resultPromise, {state}, streamName
 	state.isIterating = true;
 
 	try {
-		const {[streamName]: stream} = await resultPromise.nodeChildProcess;
+		const {[streamName]: stream} = await subprocess.nodeChildProcess;
 		if (!stream) {
 			return;
 		}
@@ -25,7 +25,7 @@ export const lineIterator = async function * (resultPromise, {state}, streamName
 			yield buffer; // Yield any remaining data as the last line
 		}
 	} finally {
-		await resultPromise;
+		await subprocess;
 	}
 };
 

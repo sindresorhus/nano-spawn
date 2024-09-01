@@ -1,10 +1,10 @@
 import {pipeline} from 'node:stream/promises';
 
-export const handlePipe = (previous, resultPromise) => Object.assign(runProcesses([previous.resultPromise, resultPromise]), resultPromise);
+export const handlePipe = (previous, subprocess) => Object.assign(runProcesses([previous.subprocess, subprocess]), subprocess);
 
-const runProcesses = async resultPromises => {
+const runProcesses = async subprocesses => {
 	// Ensure both subprocesses have exited before resolving, and that we handle errors from both
-	const returns = await Promise.allSettled([pipeStreams(resultPromises), ...resultPromises]);
+	const returns = await Promise.allSettled([pipeStreams(subprocesses), ...subprocesses]);
 
 	// If both subprocesses fail, throw source error to use a predictable order and avoid race conditions
 	const error = returns.map(({reason}) => reason).find(Boolean);
@@ -15,9 +15,9 @@ const runProcesses = async resultPromises => {
 	return returns[2].value;
 };
 
-const pipeStreams = async resultPromises => {
+const pipeStreams = async subprocesses => {
 	try {
-		const [{stdout}, {stdin}] = await Promise.all(resultPromises.map(({nodeChildProcess}) => nodeChildProcess));
+		const [{stdout}, {stdin}] = await Promise.all(subprocesses.map(({nodeChildProcess}) => nodeChildProcess));
 		if (stdin === null) {
 			throw new Error('The "stdin" option must be set on the first "nanoSpawn()" call in the pipeline.');
 		}
@@ -30,7 +30,7 @@ const pipeStreams = async resultPromises => {
 		// eslint-disable-next-line promise/prefer-await-to-then
 		pipeline(stdout, stdin).catch(() => {});
 	} catch (error) {
-		await Promise.allSettled(resultPromises.map(({nodeChildProcess}) => closeStdin(nodeChildProcess)));
+		await Promise.allSettled(subprocesses.map(({nodeChildProcess}) => closeStdin(nodeChildProcess)));
 		throw error;
 	}
 };

@@ -12,16 +12,16 @@ export default function nanoSpawn(first, second = [], third = {}) {
 	const context = getContext(previous, [file, ...commandArguments]);
 	const spawnOptions = getOptions(options);
 	const nodeChildProcess = spawnSubprocess(file, commandArguments, spawnOptions, context);
-	const resultPromise = getResult(nodeChildProcess, spawnOptions, context);
-	Object.assign(resultPromise, {nodeChildProcess});
-	const finalPromise = previous.resultPromise === undefined ? resultPromise : handlePipe(previous, resultPromise);
+	let subprocess = getResult(nodeChildProcess, spawnOptions, context);
+	Object.assign(subprocess, {nodeChildProcess});
+	subprocess = previous.subprocess === undefined ? subprocess : handlePipe(previous, subprocess);
 
-	const stdoutLines = lineIterator(finalPromise, context, 'stdout');
-	const stderrLines = lineIterator(finalPromise, context, 'stderr');
-	return Object.assign(finalPromise, {
-		stdout: stdoutLines,
-		stderr: stderrLines,
-		[Symbol.asyncIterator]: () => combineAsyncIterators(stdoutLines, stderrLines),
-		pipe: (file, second, third) => nanoSpawn([file, {...context, resultPromise: finalPromise}], second, third),
+	const stdout = lineIterator(subprocess, context, 'stdout');
+	const stderr = lineIterator(subprocess, context, 'stderr');
+	return Object.assign(subprocess, {
+		stdout,
+		stderr,
+		[Symbol.asyncIterator]: () => combineAsyncIterators(stdout, stderr),
+		pipe: (file, second, third) => nanoSpawn([file, {...context, subprocess}], second, third),
 	});
 }
