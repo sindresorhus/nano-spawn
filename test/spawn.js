@@ -84,9 +84,9 @@ test('result.output is an empty string if options.stdout and options.stderr "ign
 });
 
 test.serial('result.stdout works with multibyte sequences', async t => {
-	const promise = nanoSpawn(...nodePassThrough);
-	writeMultibyte(promise);
-	const {stdout, output} = await promise;
+	const subprocess = nanoSpawn(...nodePassThrough);
+	writeMultibyte(subprocess);
+	const {stdout, output} = await subprocess;
 	t.is(stdout, multibyteString);
 	t.is(output, stdout);
 });

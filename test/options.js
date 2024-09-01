@@ -54,10 +54,10 @@ test('Can pass options.cwd string', testCwd, fixturesPath);
 test('Can pass options.cwd URL', testCwd, FIXTURES_URL);
 
 const testStdOption = async (t, optionName) => {
-	const promise = nanoSpawn(...nodePrintStdout, {[optionName]: 'ignore'});
-	const subprocess = await promise.nodeChildProcess;
-	t.is(subprocess[optionName], null);
-	await promise;
+	const subprocess = nanoSpawn(...nodePrintStdout, {[optionName]: 'ignore'});
+	const nodeChildProcess = await subprocess.nodeChildProcess;
+	t.is(nodeChildProcess[optionName], null);
+	await subprocess;
 };
 
 test('Can pass options.stdin', testStdOption, 'stdin');
@@ -65,10 +65,10 @@ test('Can pass options.stdout', testStdOption, 'stdout');
 test('Can pass options.stderr', testStdOption, 'stderr');
 
 const testStdOptionDefault = async (t, optionName) => {
-	const promise = nanoSpawn(...nodePrintStdout);
-	const subprocess = await promise.nodeChildProcess;
-	t.not(subprocess[optionName], null);
-	await promise;
+	const subprocess = nanoSpawn(...nodePrintStdout);
+	const nodeChildProcess = await subprocess.nodeChildProcess;
+	t.not(nodeChildProcess[optionName], null);
+	await subprocess;
 };
 
 test('options.stdin defaults to "pipe"', testStdOptionDefault, 'stdin');
@@ -76,30 +76,30 @@ test('options.stdout defaults to "pipe"', testStdOptionDefault, 'stdout');
 test('options.stderr defaults to "pipe"', testStdOptionDefault, 'stderr');
 
 test('Can pass options.stdio array', async t => {
-	const promise = nanoSpawn(...nodePrintStdout, {stdio: ['ignore', 'pipe', 'pipe', 'pipe']});
-	const {stdin, stdout, stderr, stdio} = await promise.nodeChildProcess;
+	const subprocess = nanoSpawn(...nodePrintStdout, {stdio: ['ignore', 'pipe', 'pipe', 'pipe']});
+	const {stdin, stdout, stderr, stdio} = await subprocess.nodeChildProcess;
 	t.is(stdin, null);
 	t.not(stdout, null);
 	t.not(stderr, null);
 	t.is(stdio.length, 4);
-	await promise;
+	await subprocess;
 });
 
 test('Can pass options.stdio string', async t => {
-	const promise = nanoSpawn(...nodePrintStdout, {stdio: 'ignore'});
-	const {stdin, stdout, stderr, stdio} = await promise.nodeChildProcess;
+	const subprocess = nanoSpawn(...nodePrintStdout, {stdio: 'ignore'});
+	const {stdin, stdout, stderr, stdio} = await subprocess.nodeChildProcess;
 	t.is(stdin, null);
 	t.is(stdout, null);
 	t.is(stderr, null);
 	t.is(stdio.length, 3);
-	await promise;
+	await subprocess;
 });
 
 const testStdioPriority = async (t, stdio) => {
-	const promise = nanoSpawn(...nodePrintStdout, {stdio, stdout: 'ignore'});
-	const {stdout} = await promise.nodeChildProcess;
+	const subprocess = nanoSpawn(...nodePrintStdout, {stdio, stdout: 'ignore'});
+	const {stdout} = await subprocess.nodeChildProcess;
 	t.not(stdout, null);
-	await promise;
+	await subprocess;
 };
 
 test('options.stdio array has priority over options.stdout', testStdioPriority, ['pipe', 'pipe', 'pipe']);

@@ -64,8 +64,8 @@ test('Error on "error" event during spawn', async t => {
 });
 
 test('Error on "error" event during spawn, with iteration', async t => {
-	const promise = nanoSpawn(...nodeHanging, {signal: AbortSignal.abort()});
-	const error = await t.throwsAsync(arrayFromAsync(promise.stdout));
+	const subprocess = nanoSpawn(...nodeHanging, {signal: AbortSignal.abort()});
+	const error = await t.throwsAsync(arrayFromAsync(subprocess.stdout));
 	assertSigterm(t, error);
 });
 
@@ -75,10 +75,10 @@ if (isLinux) {
 	test('Error on "error" event after spawn', async t => {
 		const cause = new Error(testString);
 		const controller = new AbortController();
-		const promise = nanoSpawn(...nodeHanging, {signal: controller.signal});
-		await promise.nodeChildProcess;
+		const subprocess = nanoSpawn(...nodeHanging, {signal: controller.signal});
+		await subprocess.nodeChildProcess;
 		controller.abort(cause);
-		const error = await t.throwsAsync(promise);
+		const error = await t.throwsAsync(subprocess);
 		assertAbortError(t, error, cause);
 	});
 }
@@ -135,10 +135,10 @@ setTimeout(() => {
 });
 
 const testStreamError = async (t, streamName) => {
-	const promise = nanoSpawn(...nodePrintStdout);
+	const subprocess = nanoSpawn(...nodePrintStdout);
 	const cause = new Error(testString);
-	destroySubprocessStream(promise, cause, streamName);
-	const error = await t.throwsAsync(promise);
+	destroySubprocessStream(subprocess, cause, streamName);
+	const error = await t.throwsAsync(subprocess);
 	assertErrorEvent(t, error, cause);
 };
 
