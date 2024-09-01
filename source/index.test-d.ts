@@ -20,6 +20,9 @@ try {
 	expectType<string>(result.output);
 	expectType<string>(result.command);
 	expectType<number>(result.durationMs);
+	expectType<Result | SubprocessError | undefined>(result.pipedFrom);
+	expectType<Result | SubprocessError | undefined>(result.pipedFrom?.pipedFrom);
+	expectType<number | undefined>(result.pipedFrom?.durationMs);
 	expectNotAssignable<Error>(result);
 	expectError(result.exitCode);
 	expectError(result.signalName);
@@ -31,6 +34,9 @@ try {
 	expectType<string>(subprocessError.output);
 	expectType<string>(subprocessError.command);
 	expectType<number>(subprocessError.durationMs);
+	expectType<Result | SubprocessError | undefined>(subprocessError.pipedFrom);
+	expectType<Result | SubprocessError | undefined>(subprocessError.pipedFrom?.pipedFrom);
+	expectType<number | undefined>(subprocessError.pipedFrom?.durationMs);
 	expectAssignable<Error>(subprocessError);
 	expectType<number | undefined>(subprocessError.exitCode);
 	expectType<string | undefined>(subprocessError.signalName);
