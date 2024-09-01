@@ -1,4 +1,6 @@
-export const addPromiseMethods = resultPromise => {
+import {pipe} from './pipe.js';
+
+export const addPromiseMethods = (resultPromise, context) => {
 	const stdoutLines = lineIterator(resultPromise, 'stdout');
 	const stderrLines = lineIterator(resultPromise, 'stderr');
 
@@ -6,6 +8,7 @@ export const addPromiseMethods = resultPromise => {
 		stdout: stdoutLines,
 		stderr: stderrLines,
 		[Symbol.asyncIterator]: () => combineAsyncIterators(stdoutLines, stderrLines),
+		pipe: pipe.bind(undefined, {resultPromise, context}),
 	});
 };
 
