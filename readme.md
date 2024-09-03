@@ -58,7 +58,7 @@ for await (const line of $('ls', ['--oneline'])) {
 
 ## API
 
-See the [types](index.d.ts) for now.
+See the [types](source/index.d.ts) for now.
 
 ## Limitations
 
