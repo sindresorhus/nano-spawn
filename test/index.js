@@ -53,7 +53,12 @@ const nodePrintStderr = nodeEval(`console.error("${testString}")`);
 const nodePrintBoth = nodeEval(`console.log("${testString}");
 setTimeout(() => {
 	console.error("${secondTestString}");
-}, 0)`);
+}, 0);`);
+const nodePrintBothFail = nodeEval(`console.log("${testString}");
+setTimeout(() => {
+	console.error("${secondTestString}");
+	process.exit(2);
+}, 0);`);
 const nodePrintFail = nodeEval(`console.log("${testString}");
 process.exit(2);`);
 const nodePrintSleep = nodeEval(`setTimeout(() => {
@@ -481,6 +486,17 @@ test('promise[Symbol.asyncIterator] has no iterations if only options.stdout + o
 	t.is(stdout, '');
 	t.is(stderr, '');
 	t.is(output, '');
+});
+
+test('promise.stdout has no iterations but waits for the subprocess if options.stdout "ignore"', async t => {
+	const promise = nanoSpawn(...nodePrintBothFail, {stdout: 'ignore'});
+	const error = await t.throwsAsync(arrayFromAsync(promise.stdout));
+	assertFail(t, error);
+	const promiseError = await t.throwsAsync(promise);
+	t.is(promiseError, error);
+	t.is(promiseError.stdout, '');
+	t.is(promiseError.stderr, '');
+	t.is(promiseError.output, '');
 });
 
 test('result.stdout is an empty string if options.stdout "ignore"', async t => {
