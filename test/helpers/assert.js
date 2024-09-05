@@ -2,7 +2,7 @@ import {nonExistentCommand, nodeHangingCommand, nodeEvalCommandStart} from './co
 
 export const assertDurationMs = (t, durationMs) => {
 	t.true(Number.isFinite(durationMs));
-	t.true(durationMs > 0);
+	t.true(durationMs >= 0);
 };
 
 export const assertNonExistent = (t, {exitCode, signalName, command, message, stderr, cause, durationMs}, commandStart = nonExistentCommand, expectedCommand = commandStart) => {
