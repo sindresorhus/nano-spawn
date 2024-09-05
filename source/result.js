@@ -1,13 +1,19 @@
 import {once, on} from 'node:events';
 import process from 'node:process';
 
-export const getResult = async (nodeChildProcess, options, context) => {
+export const getResult = async (nodeChildProcess, {input}, context) => {
 	const instance = await nodeChildProcess;
-	useInput(instance, options);
+	if (input !== undefined) {
+		instance.stdin.end(input);
+	}
+
 	const onClose = once(instance, 'close');
 
 	try {
-		await Promise.race([onClose, ...onStreamErrors(instance)]);
+		await Promise.race([
+			onClose,
+			...instance.stdio.filter(Boolean).map(stream => onStreamError(stream)),
+		]);
 		checkFailure(context, getErrorOutput(instance));
 		return getOutputs(context);
 	} catch (error) {
@@ -16,24 +22,14 @@ export const getResult = async (nodeChildProcess, options, context) => {
 	}
 };
 
-const useInput = (instance, {input}) => {
-	if (input !== undefined) {
-		instance.stdin.end(input);
-	}
-};
-
-const onStreamErrors = ({stdio}) => stdio.filter(Boolean).map(stream => onStreamError(stream));
-
 const onStreamError = async stream => {
 	for await (const [error] of on(stream, 'error')) {
-		if (!IGNORED_CODES.has(error?.code)) {
+		// Ignore errors that are due to closing errors when the subprocesses exit normally, or due to piping
+		if (!['ERR_STREAM_PREMATURE_CLOSE', 'EPIPE'].includes(error?.code)) {
 			throw error;
 		}
 	}
 };
-
-// Ignore errors that are due to closing errors when the subprocesses exit normally, or due to piping
-const IGNORED_CODES = new Set(['ERR_STREAM_PREMATURE_CLOSE', 'EPIPE']);
 
 const checkFailure = ({command}, {exitCode, signalName}) => {
 	if (signalName !== undefined) {
@@ -57,7 +53,7 @@ const getErrorInstance = (error, {command}) => error?.message.startsWith('Comman
 
 const getErrorOutput = ({exitCode, signalCode}) => ({
 	// `exitCode` can be a negative number (`errno`) when the `error` event is emitted on the `instance`
-	...(exitCode === null || exitCode < 1 ? {} : {exitCode}),
+	...(exitCode < 1 ? {} : {exitCode}),
 	...(signalCode === null ? {} : {signalName: signalCode}),
 });
 
@@ -69,6 +65,6 @@ const getOutputs = ({state: {stdout, stderr, output}, command, start}) => ({
 	durationMs: Number(process.hrtime.bigint() - start) / 1e6,
 });
 
-const getOutput = input => input?.at(-1) === '\n'
-	? input.slice(0, input.at(-2) === '\r' ? -2 : -1)
-	: input;
+const getOutput = output => output.at(-1) === '\n'
+	? output.slice(0, output.at(-2) === '\r' ? -2 : -1)
+	: output;

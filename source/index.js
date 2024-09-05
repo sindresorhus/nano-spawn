@@ -6,12 +6,12 @@ import {handlePipe} from './pipe.js';
 import {lineIterator, combineAsyncIterators} from './iterable.js';
 
 export default function nanoSpawn(first, second = [], third = {}) {
-	const [rawFile, previous] = Array.isArray(first) ? first : [first, {}];
-	const [rawArguments, options] = Array.isArray(second) ? [second, third] : [[], second];
+	const [file, previous] = Array.isArray(first) ? first : [first, {}];
+	const [commandArguments, options] = Array.isArray(second) ? [second, third] : [[], second];
 
-	const context = getContext(previous, rawFile, rawArguments);
+	const context = getContext(previous, [file, ...commandArguments]);
 	const spawnOptions = getOptions(options);
-	const nodeChildProcess = spawnSubprocess(rawFile, rawArguments, spawnOptions, context);
+	const nodeChildProcess = spawnSubprocess(file, commandArguments, spawnOptions, context);
 	const resultPromise = getResult(nodeChildProcess, spawnOptions, context);
 	Object.assign(resultPromise, {nodeChildProcess});
 	const finalPromise = previous.resultPromise === undefined ? resultPromise : handlePipe(previous, resultPromise);

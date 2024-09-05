@@ -14,13 +14,11 @@ export const getOptions = ({
 }) => {
 	const cwd = cwdOption instanceof URL ? fileURLToPath(cwdOption) : path.resolve(cwdOption);
 	const env = envOption === undefined ? undefined : {...process.env, ...envOption};
-	const [stdioOption, input] = stdio[0]?.string === undefined
-		? [stdio]
-		: [['pipe', ...stdio.slice(1)], stdio[0].string];
+	const input = stdio[0]?.string;
 	return {
 		...options,
-		stdio: stdioOption,
 		input,
+		stdio: input === undefined ? stdio : ['pipe', ...stdio.slice(1)],
 		env: preferLocal ? addLocalPath(env ?? process.env, cwd) : env,
 		cwd,
 	};

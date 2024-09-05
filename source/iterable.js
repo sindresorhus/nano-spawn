@@ -9,8 +9,7 @@ export const lineIterator = async function * (resultPromise, {state}, streamName
 	state.isIterating = true;
 
 	try {
-		const instance = await resultPromise.nodeChildProcess;
-		const stream = instance[streamName];
+		const {[streamName]: stream} = await resultPromise.nodeChildProcess;
 		if (!stream) {
 			return;
 		}
