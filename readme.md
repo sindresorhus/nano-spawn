@@ -4,6 +4,7 @@
 
 [![Install size](https://packagephobia.com/badge?p=nano-spawn)](https://packagephobia.com/result?p=nano-spawn)
 ![npm package minzipped size](https://img.shields.io/bundlejs/size/nano-spawn)
+![Test coverage](https://img.shields.io/badge/coverage-100%25-green)
 <!-- [![Downloads](https://img.shields.io/npm/dm/nano-spawn.svg)](https://npmjs.com/nano-spawn) -->
 <!-- ![Dependents](https://img.shields.io/librariesio/dependents/npm/nano-spawn) -->
 
