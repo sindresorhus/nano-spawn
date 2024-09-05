@@ -54,5 +54,9 @@
 		"typescript": "^5.5.4",
 		"xo": "^0.59.3",
 		"yoctocolors": "^2.1.1"
+	},
+	"ava": {
+		"concurrency": 1,
+		"timeout": "60s"
 	}
 }
