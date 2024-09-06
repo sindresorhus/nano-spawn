@@ -20,7 +20,8 @@
 		"node": ">=18.19"
 	},
 	"scripts": {
-		"test": "xo && c8 ava && tsc ./source/index.d.ts"
+		"test": "xo && c8 ava && npm run type",
+		"type": "tsd -t ./source/index.d.ts -f ./source/index.test-d.ts"
 	},
 	"files": [
 		"source/**/*.js",
@@ -47,11 +48,13 @@
 		"execa"
 	],
 	"devDependencies": {
+		"@types/node": "^22.5.4",
 		"ava": "^6.1.3",
 		"c8": "^10.1.2",
 		"get-node": "^15.0.1",
 		"path-key": "^4.0.0",
 		"tempy": "^3.1.0",
+		"tsd": "^0.31.2",
 		"typescript": "^5.5.4",
 		"xo": "^0.59.3",
 		"yoctocolors": "^2.1.1"
