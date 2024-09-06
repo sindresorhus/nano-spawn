@@ -67,8 +67,8 @@ test('.pipe() source fails due to stream error', async t => {
 	const first = nanoSpawn(...nodePrintStdout);
 	const second = first.pipe(...nodeToUpperCase);
 	const cause = new Error(testString);
-	const subprocess = await first.nodeChildProcess;
-	subprocess.stdout.destroy(cause);
+	const nodeChildProcess = await first.nodeChildProcess;
+	nodeChildProcess.stdout.destroy(cause);
 	const error = await t.throwsAsync(second);
 	assertErrorEvent(t, error, cause);
 });
@@ -90,8 +90,8 @@ test('.pipe() destination fails due to stream error', async t => {
 	const first = nanoSpawn(...nodePrintStdout);
 	const second = first.pipe(...nodeToUpperCase);
 	const cause = new Error(testString);
-	const subprocess = await second.nodeChildProcess;
-	subprocess.stdin.destroy(cause);
+	const nodeChildProcess = await second.nodeChildProcess;
+	nodeChildProcess.stdin.destroy(cause);
 	const error = await t.throwsAsync(second);
 	assertErrorEvent(t, error, cause);
 });
@@ -250,63 +250,63 @@ test('.pipe() with stdout stream in source', async t => {
 });
 
 test('.pipe() + stdout/stderr iteration', async t => {
-	const promise = nanoSpawn(...nodePrintStdout).pipe(...nodeToUpperCase);
-	const lines = await arrayFromAsync(promise);
+	const subprocess = nanoSpawn(...nodePrintStdout).pipe(...nodeToUpperCase);
+	const lines = await arrayFromAsync(subprocess);
 	t.deepEqual(lines, [testUpperCase]);
-	const {stdout, stderr, output} = await promise;
+	const {stdout, stderr, output} = await subprocess;
 	t.is(stdout, '');
 	t.is(stderr, '');
 	t.is(output, '');
 });
 
 test('.pipe() + stdout iteration', async t => {
-	const promise = nanoSpawn(...nodePrintStdout).pipe(...nodeToUpperCase);
-	const lines = await arrayFromAsync(promise.stdout);
+	const subprocess = nanoSpawn(...nodePrintStdout).pipe(...nodeToUpperCase);
+	const lines = await arrayFromAsync(subprocess.stdout);
 	t.deepEqual(lines, [testUpperCase]);
-	const {stdout, output} = await promise;
+	const {stdout, output} = await subprocess;
 	t.is(stdout, '');
 	t.is(output, '');
 });
 
 test('.pipe() + stderr iteration', async t => {
-	const promise = nanoSpawn(...nodePrintStdout).pipe(...nodeToUpperCaseStderr);
-	const lines = await arrayFromAsync(promise.stderr);
+	const subprocess = nanoSpawn(...nodePrintStdout).pipe(...nodeToUpperCaseStderr);
+	const lines = await arrayFromAsync(subprocess.stderr);
 	t.deepEqual(lines, [testUpperCase]);
-	const {stderr, output} = await promise;
+	const {stderr, output} = await subprocess;
 	t.is(stderr, '');
 	t.is(output, '');
 });
 
 test('.pipe() + stdout iteration, source fail', async t => {
-	const promise = nanoSpawn(...nodePrintFail).pipe(...nodeToUpperCase);
-	const error = await t.throwsAsync(arrayFromAsync(promise.stdout));
+	const subprocess = nanoSpawn(...nodePrintFail).pipe(...nodeToUpperCase);
+	const error = await t.throwsAsync(arrayFromAsync(subprocess.stdout));
 	assertFail(t, error);
 	t.is(error.stdout, testString);
-	const secondError = await t.throwsAsync(promise);
+	const secondError = await t.throwsAsync(subprocess);
 	t.is(secondError.stdout, testString);
 	t.is(secondError.output, secondError.stdout);
 });
 
 test('.pipe() + stdout iteration, destination fail', async t => {
-	const promise = nanoSpawn(...nodePrintStdout).pipe(...nodeToUpperCaseFail);
-	const error = await t.throwsAsync(arrayFromAsync(promise.stdout));
+	const subprocess = nanoSpawn(...nodePrintStdout).pipe(...nodeToUpperCaseFail);
+	const error = await t.throwsAsync(arrayFromAsync(subprocess.stdout));
 	assertFail(t, error);
 	t.is(error.stdout, '');
-	const secondError = await t.throwsAsync(promise);
+	const secondError = await t.throwsAsync(subprocess);
 	t.is(secondError.stdout, '');
 	t.is(secondError.output, '');
 });
 
 test('.pipe() with EPIPE', async t => {
-	const promise = nanoSpawn(...nodeEval(`setInterval(() => {
+	const subprocess = nanoSpawn(...nodeEval(`setInterval(() => {
 	console.log("${testString}");
 }, 0);
 process.stdout.on("error", () => {
 	process.exit();
 });`)).pipe('head', ['-n', '2']);
-	const lines = await arrayFromAsync(promise);
+	const lines = await arrayFromAsync(subprocess);
 	t.deepEqual(lines, [testString, testString]);
-	const {stdout, output} = await promise;
+	const {stdout, output} = await subprocess;
 	t.is(stdout, '');
 	t.is(output, '');
 });

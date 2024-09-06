@@ -9,24 +9,24 @@ test('Can pass no arguments', async t => {
 });
 
 test('Can pass no arguments nor options', async t => {
-	const promise = nanoSpawn(...nodeHanging);
-	const nodeChildProcess = await promise.nodeChildProcess;
+	const subprocess = nanoSpawn(...nodeHanging);
+	const nodeChildProcess = await subprocess.nodeChildProcess;
 	nodeChildProcess.kill();
-	const error = await t.throwsAsync(promise);
+	const error = await t.throwsAsync(subprocess);
 	assertSigterm(t, error);
 });
 
 test('Returns a promise', async t => {
-	const promise = nanoSpawn(...nodePrintStdout);
-	t.false(Object.prototype.propertyIsEnumerable.call(promise, 'then'));
-	t.false(Object.hasOwn(promise, 'then'));
-	t.true(promise instanceof Promise);
-	await promise;
+	const subprocess = nanoSpawn(...nodePrintStdout);
+	t.false(Object.prototype.propertyIsEnumerable.call(subprocess, 'then'));
+	t.false(Object.hasOwn(subprocess, 'then'));
+	t.true(subprocess instanceof Promise);
+	await subprocess;
 });
 
-test('promise.nodeChildProcess is set', async t => {
-	const promise = nanoSpawn(...nodePrintStdout);
-	const nodeChildProcess = await promise.nodeChildProcess;
+test('subprocess.nodeChildProcess is set', async t => {
+	const subprocess = nanoSpawn(...nodePrintStdout);
+	const nodeChildProcess = await subprocess.nodeChildProcess;
 	t.true(Number.isInteger(nodeChildProcess.pid));
-	await promise;
+	await subprocess;
 });

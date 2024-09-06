@@ -24,13 +24,13 @@ export const arrayFromAsync = async asyncIterable => {
 	return chunks;
 };
 
-export const destroySubprocessStream = async ({nodeChildProcess}, error, streamName) => {
-	const subprocess = await nodeChildProcess;
-	subprocess[streamName].destroy(error);
+export const destroySubprocessStream = async (subprocess, error, streamName) => {
+	const nodeChildProcess = await subprocess.nodeChildProcess;
+	nodeChildProcess[streamName].destroy(error);
 };
 
-export const writeMultibyte = async promise => {
-	const {stdin} = await promise.nodeChildProcess;
+export const writeMultibyte = async subprocess => {
+	const {stdin} = await subprocess.nodeChildProcess;
 	stdin.write(multibyteFirstHalf);
 	await setTimeout(1e2);
 	stdin.end(multibyteSecondHalf);
