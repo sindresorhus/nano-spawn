@@ -13,7 +13,7 @@ export const getOptions = ({
 	...options
 }) => {
 	const cwd = cwdOption instanceof URL ? fileURLToPath(cwdOption) : path.resolve(cwdOption);
-	const env = envOption === undefined ? undefined : {...process.env, ...envOption};
+	const env = envOption ? {...process.env, ...envOption} : undefined;
 	const input = stdio[0]?.string;
 	return {
 		...options,
