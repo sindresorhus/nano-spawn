@@ -1,8 +1,6 @@
 import {pipeline} from 'node:stream/promises';
 
-export const handlePipe = (previous, subprocess) => Object.assign(runProcesses([previous, subprocess]), subprocess);
-
-const runProcesses = async subprocesses => {
+export const handlePipe = async subprocesses => {
 	// Ensure both subprocesses have exited before resolving, and that we handle errors from both
 	const [[from, to]] = await Promise.all([Promise.allSettled(subprocesses), pipeStreams(subprocesses)]);
 
