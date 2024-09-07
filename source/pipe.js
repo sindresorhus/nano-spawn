@@ -1,18 +1,22 @@
 import {pipeline} from 'node:stream/promises';
 
-export const handlePipe = (previous, subprocess) => Object.assign(runProcesses([previous.subprocess, subprocess]), subprocess);
+export const handlePipe = (previous, subprocess) => Object.assign(runProcesses([previous, subprocess]), subprocess);
 
 const runProcesses = async subprocesses => {
 	// Ensure both subprocesses have exited before resolving, and that we handle errors from both
-	const returns = await Promise.allSettled([pipeStreams(subprocesses), ...subprocesses]);
+	const [[from, to]] = await Promise.all([Promise.allSettled(subprocesses), pipeStreams(subprocesses)]);
 
-	// If both subprocesses fail, throw source error to use a predictable order and avoid race conditions
-	const error = returns.map(({reason}) => reason).find(Boolean);
-	if (error) {
-		throw error;
+	// If both subprocesses fail, throw destination error to use a predictable order and avoid race conditions
+	if (to.reason) {
+		to.reason.pipedFrom = from.reason ?? from.value;
+		throw to.reason;
 	}
 
-	return returns[2].value;
+	if (from.reason) {
+		throw from.reason;
+	}
+
+	return {...to.value, pipedFrom: from.value};
 };
 
 const pipeStreams = async subprocesses => {

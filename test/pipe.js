@@ -39,28 +39,35 @@ import {
 
 const testFixtureUrl = new URL('test.txt', FIXTURES_URL);
 
-const getPipeSize = command => command.split(' | ').length;
-
 test('.pipe() success', async t => {
-	const {stdout, output, command, durationMs} = await nanoSpawn(...nodePrintStdout).pipe(...nodeToUpperCase);
+	const first = nanoSpawn(...nodePrintStdout);
+	const {stdout, output, durationMs, pipedFrom} = await first.pipe(...nodeToUpperCase);
+	const firstResult = await first;
+	t.is(firstResult.pipedFrom, undefined);
+	t.is(pipedFrom, firstResult);
 	t.is(stdout, testUpperCase);
 	t.is(output, stdout);
-	t.is(getPipeSize(command), 2);
 	assertDurationMs(t, durationMs);
 });
 
 test('.pipe() source fails', async t => {
-	const error = await t.throwsAsync(nanoSpawn(...nodePrintFail).pipe(...nodeToUpperCase));
-	assertFail(t, error);
-	t.is(error.stdout, testString);
-	t.is(error.output, error.stdout);
-	t.is(getPipeSize(error.command), 1);
+	const first = nanoSpawn(...nodePrintFail);
+	const secondError = await t.throwsAsync(first.pipe(...nodeToUpperCase));
+	const firstError = await t.throwsAsync(first);
+	t.is(firstError, secondError);
+	t.is(secondError.pipedFrom, undefined);
+	assertFail(t, secondError);
+	t.is(secondError.stdout, testString);
+	t.is(secondError.output, secondError.stdout);
 });
 
 test('.pipe() source fails due to child_process invalid option', async t => {
-	const error = await t.throwsAsync(nanoSpawn(...nodePrintStdout, earlyErrorOptions).pipe(...nodeToUpperCase));
-	assertEarlyError(t, error);
-	t.is(getPipeSize(error.command), 1);
+	const first = nanoSpawn(...nodePrintStdout, earlyErrorOptions);
+	const secondError = await t.throwsAsync(first.pipe(...nodeToUpperCase));
+	const firstError = await t.throwsAsync(first);
+	assertEarlyError(t, secondError);
+	t.is(firstError, secondError);
+	t.is(secondError.pipedFrom, undefined);
 });
 
 test('.pipe() source fails due to stream error', async t => {
@@ -69,21 +76,33 @@ test('.pipe() source fails due to stream error', async t => {
 	const cause = new Error(testString);
 	const nodeChildProcess = await first.nodeChildProcess;
 	nodeChildProcess.stdout.destroy(cause);
-	const error = await t.throwsAsync(second);
-	assertErrorEvent(t, error, cause);
+	const secondError = await t.throwsAsync(second);
+	const firstError = await t.throwsAsync(first);
+	assertErrorEvent(t, secondError, cause);
+	assertErrorEvent(t, firstError, cause);
+	t.is(firstError.pipedFrom, undefined);
+	t.is(secondError.pipedFrom, firstError);
 });
 
 test('.pipe() destination fails', async t => {
-	const error = await t.throwsAsync(nanoSpawn(...nodePrintStdout).pipe(...nodeToUpperCaseFail));
-	assertFail(t, error);
-	t.is(error.stdout, testUpperCase);
-	t.is(getPipeSize(error.command), 2);
+	const first = nanoSpawn(...nodePrintStdout);
+	const secondError = await t.throwsAsync(first.pipe(...nodeToUpperCaseFail));
+	const firstResult = await first;
+	assertFail(t, secondError);
+	t.is(firstResult.pipedFrom, undefined);
+	t.is(secondError.pipedFrom, firstResult);
+	t.is(firstResult.stdout, testString);
+	t.is(secondError.stdout, testUpperCase);
 });
 
 test('.pipe() destination fails due to child_process invalid option', async t => {
-	const error = await t.throwsAsync(nanoSpawn(...nodePrintStdout).pipe(...nodeToUpperCase, earlyErrorOptions));
-	assertEarlyError(t, error);
-	t.is(getPipeSize(error.command), 2);
+	const first = nanoSpawn(...nodePrintStdout);
+	const secondError = await t.throwsAsync(first.pipe(...nodeToUpperCase, earlyErrorOptions));
+	const firstResult = await first;
+	assertEarlyError(t, secondError);
+	t.is(firstResult.pipedFrom, undefined);
+	t.is(secondError.pipedFrom, undefined);
+	t.is(firstResult.stdout, testString);
 });
 
 test('.pipe() destination fails due to stream error', async t => {
@@ -92,15 +111,26 @@ test('.pipe() destination fails due to stream error', async t => {
 	const cause = new Error(testString);
 	const nodeChildProcess = await second.nodeChildProcess;
 	nodeChildProcess.stdin.destroy(cause);
-	const error = await t.throwsAsync(second);
-	assertErrorEvent(t, error, cause);
+	const secondError = await t.throwsAsync(second);
+	const firstError = await t.throwsAsync(first);
+	assertErrorEvent(t, secondError, cause);
+	assertErrorEvent(t, firstError, cause);
+	t.is(firstError.pipedFrom, undefined);
+	t.is(secondError.pipedFrom, firstError);
 });
 
 test('.pipe() source and destination fail', async t => {
-	const error = await t.throwsAsync(nanoSpawn(...nodePrintFail).pipe(...nodeToUpperCaseFail));
-	assertFail(t, error);
-	t.is(error.stdout, testString);
-	t.is(getPipeSize(error.command), 1);
+	const first = nanoSpawn(...nodePrintFail);
+	const secondError = await t.throwsAsync(first.pipe(...nodeToUpperCaseFail));
+	const firstError = await t.throwsAsync(first);
+	assertFail(t, firstError);
+	assertFail(t, secondError);
+	t.is(firstError.pipedFrom, undefined);
+	t.is(secondError.pipedFrom, firstError);
+	t.is(firstError.stdout, testString);
+	t.is(firstError.output, firstError.stdout);
+	t.is(secondError.stdout, testUpperCase);
+	t.is(secondError.output, secondError.stdout);
 });
 
 test('.pipe().pipe() success', async t => {
@@ -111,10 +141,7 @@ test('.pipe().pipe() success', async t => {
 	t.is(firstResult.output, firstResult.stdout);
 	t.is(secondResult.stdout, testDoubleUpperCase);
 	t.is(secondResult.output, secondResult.stdout);
-	t.is(getPipeSize(firstResult.command), 2);
-	t.is(getPipeSize(secondResult.command), 3);
 	assertDurationMs(t, firstResult.durationMs);
-	t.true(secondResult.durationMs > firstResult.durationMs);
 });
 
 test('.pipe().pipe() first source fail', async t => {
@@ -125,7 +152,6 @@ test('.pipe().pipe() first source fail', async t => {
 	t.is(firstError, secondError);
 	t.is(firstError.stdout, testString);
 	t.is(firstError.output, firstError.stdout);
-	t.is(getPipeSize(firstError.command), 1);
 });
 
 test('.pipe().pipe() second source fail', async t => {
@@ -136,7 +162,6 @@ test('.pipe().pipe() second source fail', async t => {
 	t.is(firstError, secondError);
 	t.is(firstError.stdout, testUpperCase);
 	t.is(firstError.output, firstError.stdout);
-	t.is(getPipeSize(firstError.command), 2);
 });
 
 test('.pipe().pipe() destination fail', async t => {
@@ -148,8 +173,6 @@ test('.pipe().pipe() destination fail', async t => {
 	t.is(firstResult.output, firstResult.stdout);
 	t.is(secondError.stdout, testDoubleUpperCase);
 	t.is(secondError.output, secondError.stdout);
-	t.is(getPipeSize(firstResult.command), 2);
-	t.is(getPipeSize(secondError.command), 3);
 	assertDurationMs(t, firstResult.durationMs);
 });
 
@@ -158,10 +181,12 @@ test('.pipe().pipe() all fail', async t => {
 	const secondError = await t.throwsAsync(first.pipe(...nodeDoubleFail));
 	const firstError = await t.throwsAsync(first);
 	assertFail(t, firstError);
-	t.is(firstError, secondError);
-	t.is(firstError.stdout, testString);
+	assertFail(t, secondError);
+	t.is(secondError.pipedFrom, firstError);
+	t.is(firstError.stdout, testUpperCase);
 	t.is(firstError.output, firstError.stdout);
-	t.is(getPipeSize(firstError.command), 1);
+	t.is(secondError.stdout, testDoubleUpperCase);
+	t.is(secondError.output, secondError.stdout);
 });
 
 // Cannot guarantee that `cat` exists on Windows

@@ -29,6 +29,8 @@ export type Result = {
 	command: string;
 
 	durationMs: number;
+
+	pipedFrom?: Result | SubprocessError;
 };
 
 export type SubprocessError = Error & Result & {
