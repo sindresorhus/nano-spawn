@@ -105,13 +105,15 @@ const testStdioPriority = async (t, stdio) => {
 test('options.stdio array has priority over options.stdout', testStdioPriority, ['pipe', 'pipe', 'pipe']);
 test('options.stdio string has priority over options.stdout', testStdioPriority, 'pipe');
 
-const testInput = async (t, options) => {
+const testInput = async (t, options, expectedStdout) => {
 	const {stdout} = await nanoSpawn(...nodePassThrough, options);
-	t.is(stdout, testString);
+	t.is(stdout, expectedStdout);
 };
 
-test('options.stdin can be {string: string}', testInput, {stdin: {string: testString}});
-test('options.stdio[0] can be {string: string}', testInput, {stdio: [{string: testString}, 'pipe', 'pipe']});
+test('options.stdin can be {string: string}', testInput, {stdin: {string: testString}}, testString);
+test('options.stdio[0] can be {string: string}', testInput, {stdio: [{string: testString}, 'pipe', 'pipe']}, testString);
+test('options.stdin can be {string: ""}', testInput, {stdin: {string: ''}}, '');
+test('options.stdio[0] can be {string: ""}', testInput, {stdio: [{string: ''}, 'pipe', 'pipe']}, '');
 
 const testLocalBinaryExec = async (t, cwd) => {
 	const {stdout} = await nanoSpawn(...localBinary, {preferLocal: true, cwd});

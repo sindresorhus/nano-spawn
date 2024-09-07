@@ -3,6 +3,7 @@ export const secondTestString = 'secondTest';
 export const thirdTestString = 'thirdTest';
 export const fourthTestString = 'fourthTest';
 export const testUpperCase = testString.toUpperCase();
+export const testDouble = `${testString}${testString}`;
 export const testDoubleUpperCase = `${testUpperCase}${testUpperCase}`;
 
 export const multibyteString = '.\u{1F984}.';
