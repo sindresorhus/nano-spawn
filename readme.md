@@ -252,7 +252,7 @@ If a signal terminated the subprocess, this property is defined and included in 
 
 This package fixes several cross-platform issues with [`node:child_process`](https://nodejs.org/api/child_process.html). It brings full Windows support for:
 - Node modules binaries (without requiring the [`shell`](https://nodejs.org/api/child_process.html#default-windows-shell) option). This includes running `npm ...` or `yarn ...`.
-- `.cmd`, `.bat` and other shell files.
+- `.cmd`, `.bat`, and other shell files.
 - The [`PATHEXT`](https://wiki.tcl-lang.org/page/PATHEXT) environment variable.
 - Windows-specific [newlines](https://en.wikipedia.org/wiki/Newline#Representation).
 
