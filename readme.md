@@ -46,6 +46,7 @@ npm install nano-spawn
 import spawn from 'nano-spawn';
 
 const result = await spawn('echo', ['🦄']);
+
 console.log(result.output);
 //=> '🦄'
 ```
