@@ -278,7 +278,7 @@ const result = await pExecFile('npm', ['run', 'build']);
 
 ### Execa
 
-[Execa](https://github.com/sindresorhus/execa) is a similar package: it provides the same features, is also built on top of `node:child_process`, and is maintained by the [same people](#maintainers).
+[Execa](https://github.com/sindresorhus/execa) is a similar package: it provides the same features, but more. It is also built on top of `node:child_process`, and is maintained by the [same people](#maintainers).
 
 On one hand, it has a bigger size: [![Install size](https://packagephobia.com/badge?p=execa)](https://packagephobia.com/result?p=execa)
 
