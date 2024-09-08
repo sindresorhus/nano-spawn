@@ -74,7 +74,7 @@ const result = await spawn('npm', ['run', 'build'])
 
 ## API
 
-### nanoSpawn(file, arguments?, options?)
+### spawn(file, arguments?, options?) <sup>default export</sup>
 
 `file`: `string`\
 `arguments`: `string[]`\
