@@ -14,11 +14,11 @@ No dependencies. Small package size: ![npm package minzipped size](https://img.s
 
 Despite the small size, this is packed with some essential features:
 - [Promise-based](#nanospawnfile-arguments-options) interface.
+- [Iterate](#subprocesssymbolasynciterator) over the output lines.
+- [Pipe](#subprocesspipefile-arguments-options) multiple subprocesses and retrieve [intermediate results](#resultpipedfrom).
 - Execute [locally installed binaries](#optionspreferlocal) without `npx`.
 - Improved [Windows support](#windows-support).
 - Proper handling of [subprocess failures](#subprocesserror) and better error messages.
-- [Pipe](#subprocesspipefile-arguments-options) multiple subprocesses and retrieve [intermediate results](#resultpipedfrom).
-- [Iterate](#subprocesssymbolasynciterator) over the output lines.
 - Get [interleaved output](#resultoutput) from stdout and stderr similar to what is printed on the terminal.
 - Strip [unnecessary newlines](#resultstdout).
 - Pass strings as [`stdin` input](#optionsstdin-optionsstdout-optionsstderr) to the subprocess.
