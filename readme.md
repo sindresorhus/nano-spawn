@@ -89,7 +89,7 @@ If `file` is `'node'`, the current Node.js version and [flags](https://nodejs.or
 
 ##### options.stdio, options.shell, options.timeout, options.signal, options.cwd, options.killSignal, options.serialization, options.detached, options.uid, options.gid, options.windowsVerbatimArguments, options.windowsHide, options.argv0
 
-All `child_process.spawn()` options can be passed to `nanoSpawn()`. Please see [the `node:child_process` documentation](https://nodejs.org/api/child_process.html#child_processspawncommand-args-options) for a description of each option.
+All [`child_process.spawn()` options](https://nodejs.org/api/child_process.html#child_processspawncommand-args-options) can be passed to `nanoSpawn()`.
 
 ##### options.env
 
