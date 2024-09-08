@@ -289,7 +289,3 @@ We recommend using Execa in most cases, unless your environment requires using s
 
 - [Sindre Sorhus](https://github.com/sindresorhus)
 - [@ehmicky](https://github.com/ehmicky)
-
-## Related
-
-- [unicorn-magic](https://github.com/sindresorhus/unicorn-magic/blob/6614e1e82a19f41d7cc8f04df7c90a4dfe781741/node.d.ts#L77-L125) - Slightly improved `child_process#execFile`
