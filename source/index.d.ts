@@ -200,7 +200,7 @@ export type Subprocess = Promise<Result> & AsyncIterable<string> & {
 		.pipe('sort')
 		.pipe('head', ['-n', '2']);
 	```
-	 */
+	*/
 	pipe(file: string, arguments?: readonly string[], options?: Options): Subprocess;
 	pipe(file: string, options?: Options): Subprocess;
 };
