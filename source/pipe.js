@@ -21,11 +21,11 @@ const pipeStreams = async subprocesses => {
 	try {
 		const [{stdout}, {stdin}] = await Promise.all(subprocesses.map(({nodeChildProcess}) => nodeChildProcess));
 		if (stdin === null) {
-			throw new Error('The "stdin" option must be set on the first "nanoSpawn()" call in the pipeline.');
+			throw new Error('The "stdin" option must be set on the first "spawn()" call in the pipeline.');
 		}
 
 		if (stdout === null) {
-			throw new Error('The "stdout" option must be set on the last "nanoSpawn()" call in the pipeline.');
+			throw new Error('The "stdout" option must be set on the last "spawn()" call in the pipeline.');
 		}
 
 		// Do not `await` nor handle stream errors since this is already done by each subprocess

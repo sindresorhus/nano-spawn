@@ -3,7 +3,7 @@ export const lineIterator = async function * (subprocess, {state}, streamName) {
 	// This would defeat one of the main goals of iterating: low memory consumption.
 	if (state.isIterating === false) {
 		throw new Error(`The subprocess must be iterated right away, for example:
-	for await (const line of nanoSpawn(...)) { ... }`);
+	for await (const line of spawn(...)) { ... }`);
 	}
 
 	state.isIterating = true;
