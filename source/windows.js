@@ -2,12 +2,18 @@ import {stat} from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
+// When setting `shell: true` under-the-hood, we must manually escape the file and arguments.
+// This ensures arguments are properly split, and prevents command injection.
+export const applyForceShell = async (file, commandArguments, options) => await shouldForceShell(file, options)
+	? [escapeFile(file), commandArguments.map(argument => escapeArgument(argument)), {...options, shell: true}]
+	: [file, commandArguments, options];
+
 // On Windows, running most executable files (except *.exe and *.com) requires using a shell.
 // This includes *.cmd and *.bat, which itself includes Node modules binaries.
 // We detect this situation and automatically:
 //  - Set the `shell: true` option
 //  - Escape shell-specific characters
-export const getForcedShell = async (file, {shell, cwd, env = process.env}) => process.platform === 'win32'
+const shouldForceShell = async (file, {shell, cwd, env = process.env}) => process.platform === 'win32'
 	&& !shell
 	&& !(await isExe(file, cwd, env));
 
@@ -59,12 +65,6 @@ const mIsExe = async (file, cwd, PATH) => {
 
 // Other file extensions require using a shell
 const exeExtensions = ['.exe', '.com'];
-
-// When setting `shell: true` under-the-hood, we must manually escape the file and arguments.
-// This ensures arguments are properly split, and prevents command injection.
-export const escapeArguments = (file, commandArguments, forcedShell) => forcedShell
-	? [escapeFile(file), commandArguments.map(argument => escapeArgument(argument))]
-	: [file, commandArguments];
 
 // `cmd.exe` escaping for arguments.
 // Taken from https://github.com/moxystudio/node-cross-spawn

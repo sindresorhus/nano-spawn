@@ -1,7 +1,7 @@
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import process from 'node:process';
-import {getForcedShell, escapeArguments} from './windows.js';
+import {applyForceShell} from './windows.js';
 import {getResultError} from './result.js';
 
 export const spawnSubprocess = async (file, commandArguments, options, context) => {
@@ -13,11 +13,7 @@ export const spawnSubprocess = async (file, commandArguments, options, context) 
 			? [process.execPath, [...process.execArgv.filter(flag => !flag.startsWith('--inspect')), ...commandArguments]]
 			: [file, commandArguments];
 
-		const forcedShell = await getForcedShell(file, options);
-		const instance = spawn(...escapeArguments(file, commandArguments, forcedShell), {
-			...options,
-			shell: options.shell || forcedShell,
-		});
+		const instance = spawn(...await applyForceShell(file, commandArguments, options));
 		bufferOutput(instance.stdout, context, 'stdout');
 		bufferOutput(instance.stderr, context, 'stderr');
 
