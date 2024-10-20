@@ -33,11 +33,11 @@ const onStreamError = async stream => {
 
 const checkFailure = ({command}, {exitCode, signalName}) => {
 	if (signalName !== undefined) {
-		throw new Error(`Command was terminated with ${signalName}: ${command}`);
+		throw new SubprocessError(`Command was terminated with ${signalName}: ${command}`);
 	}
 
 	if (exitCode !== undefined) {
-		throw new Error(`Command failed with exit code ${exitCode}: ${command}`);
+		throw new SubprocessError(`Command failed with exit code ${exitCode}: ${command}`);
 	}
 };
 
@@ -47,9 +47,13 @@ export const getResultError = (error, instance, context) => Object.assign(
 	getOutputs(context),
 );
 
-const getErrorInstance = (error, {command}) => error?.message.startsWith('Command ')
+const getErrorInstance = (error, {command}) => error instanceof SubprocessError
 	? error
-	: new Error(`Command failed: ${command}`, {cause: error});
+	: new SubprocessError(`Command failed: ${command}`, {cause: error});
+
+export class SubprocessError extends Error {
+	name = 'SubprocessError';
+}
 
 const getErrorOutput = ({exitCode, signalCode}) => ({
 	// `exitCode` can be a negative number (`errno`) when the `error` event is emitted on the `instance`

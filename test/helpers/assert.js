@@ -1,11 +1,16 @@
 import {nonExistentCommand, nodeHangingCommand, nodeEvalCommandStart} from './commands.js';
 
+export const assertSubprocessErrorName = (t, name) => {
+	t.is(name, 'SubprocessError');
+};
+
 export const assertDurationMs = (t, durationMs) => {
 	t.true(Number.isFinite(durationMs));
 	t.true(durationMs >= 0);
 };
 
-export const assertNonExistent = (t, {exitCode, signalName, command, message, stderr, cause, durationMs}, commandStart = nonExistentCommand, expectedCommand = commandStart) => {
+export const assertNonExistent = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, commandStart = nonExistentCommand, expectedCommand = commandStart) => {
+	assertSubprocessErrorName(t, name);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
 	t.is(command, expectedCommand);
@@ -18,7 +23,8 @@ export const assertNonExistent = (t, {exitCode, signalName, command, message, st
 	assertDurationMs(t, durationMs);
 };
 
-export const assertWindowsNonExistent = (t, {exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
+export const assertWindowsNonExistent = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
+	assertSubprocessErrorName(t, name);
 	t.is(exitCode, 1);
 	t.is(signalName, undefined);
 	t.is(command, expectedCommand);
@@ -28,7 +34,8 @@ export const assertWindowsNonExistent = (t, {exitCode, signalName, command, mess
 	assertDurationMs(t, durationMs);
 };
 
-export const assertUnixNonExistentShell = (t, {exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
+export const assertUnixNonExistentShell = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
+	assertSubprocessErrorName(t, name);
 	t.is(exitCode, 127);
 	t.is(signalName, undefined);
 	t.is(command, expectedCommand);
@@ -38,7 +45,8 @@ export const assertUnixNonExistentShell = (t, {exitCode, signalName, command, me
 	assertDurationMs(t, durationMs);
 };
 
-export const assertUnixNotFound = (t, {exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
+export const assertUnixNotFound = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
+	assertSubprocessErrorName(t, name);
 	t.is(exitCode, 127);
 	t.is(signalName, undefined);
 	t.is(command, expectedCommand);
@@ -48,7 +56,8 @@ export const assertUnixNotFound = (t, {exitCode, signalName, command, message, s
 	assertDurationMs(t, durationMs);
 };
 
-export const assertFail = (t, {exitCode, signalName, command, message, cause, durationMs}, commandStart = nodeEvalCommandStart) => {
+export const assertFail = (t, {name, exitCode, signalName, command, message, cause, durationMs}, commandStart = nodeEvalCommandStart) => {
+	assertSubprocessErrorName(t, name);
 	t.is(exitCode, 2);
 	t.is(signalName, undefined);
 	t.true(command.startsWith(commandStart));
@@ -57,7 +66,8 @@ export const assertFail = (t, {exitCode, signalName, command, message, cause, du
 	assertDurationMs(t, durationMs);
 };
 
-export const assertSigterm = (t, {exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nodeHangingCommand) => {
+export const assertSigterm = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nodeHangingCommand) => {
+	assertSubprocessErrorName(t, name);
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
 	t.is(command, expectedCommand);
@@ -67,7 +77,8 @@ export const assertSigterm = (t, {exitCode, signalName, command, message, stderr
 	assertDurationMs(t, durationMs);
 };
 
-export const assertEarlyError = (t, {exitCode, signalName, command, message, stderr, cause, durationMs}, commandStart = nodeEvalCommandStart) => {
+export const assertEarlyError = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, commandStart = nodeEvalCommandStart) => {
+	assertSubprocessErrorName(t, name);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
 	t.true(command.startsWith(commandStart));
@@ -78,7 +89,8 @@ export const assertEarlyError = (t, {exitCode, signalName, command, message, std
 	assertDurationMs(t, durationMs);
 };
 
-export const assertAbortError = (t, {exitCode, signalName, command, stderr, message, cause, durationMs}, expectedCause, expectedCommand = nodeHangingCommand) => {
+export const assertAbortError = (t, {name, exitCode, signalName, command, stderr, message, cause, durationMs}, expectedCause, expectedCommand = nodeHangingCommand) => {
+	assertSubprocessErrorName(t, name);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
 	t.is(command, expectedCommand);
@@ -89,7 +101,8 @@ export const assertAbortError = (t, {exitCode, signalName, command, stderr, mess
 	assertDurationMs(t, durationMs);
 };
 
-export const assertErrorEvent = (t, {exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCause, commandStart = nodeEvalCommandStart) => {
+export const assertErrorEvent = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCause, commandStart = nodeEvalCommandStart) => {
+	assertSubprocessErrorName(t, name);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
 	t.true(command.startsWith(commandStart));

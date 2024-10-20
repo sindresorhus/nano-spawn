@@ -5,6 +5,8 @@ import {getResult} from './result.js';
 import {handlePipe} from './pipe.js';
 import {lineIterator, combineAsyncIterators} from './iterable.js';
 
+export {SubprocessError} from './result.js';
+
 export default function spawn(file, second, third, previous) {
 	const [commandArguments = [], options = {}] = Array.isArray(second) ? [second, third] : [[], second];
 	const context = getContext([file, ...commandArguments]);

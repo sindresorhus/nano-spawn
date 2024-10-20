@@ -233,6 +233,8 @@ Subprocesses fail either when their [exit code](#subprocesserrorexitcode) is not
 
 Subprocess errors have the same shape as [successful results](#result), with the following additional properties.
 
+This error class is exported, so you can use `if (error instanceof SubprocessError) { ... }`.
+
 ##### subprocessError.exitCode
 
 _Type_: `number | undefined`

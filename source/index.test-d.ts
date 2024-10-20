@@ -6,9 +6,9 @@ import {
 	expectError,
 } from 'tsd';
 import spawn, {
+	SubprocessError,
 	type Options,
 	type Result,
-	type SubprocessError,
 	type Subprocess,
 } from './index.js';
 
@@ -28,19 +28,20 @@ try {
 	expectError(result.signalName);
 	expectError(result.other);
 } catch (error) {
-	const subprocessError = error as SubprocessError;
-	expectType<string>(subprocessError.stdout);
-	expectType<string>(subprocessError.stderr);
-	expectType<string>(subprocessError.output);
-	expectType<string>(subprocessError.command);
-	expectType<number>(subprocessError.durationMs);
-	expectType<Result | SubprocessError | undefined>(subprocessError.pipedFrom);
-	expectType<Result | SubprocessError | undefined>(subprocessError.pipedFrom?.pipedFrom);
-	expectType<number | undefined>(subprocessError.pipedFrom?.durationMs);
-	expectAssignable<Error>(subprocessError);
-	expectType<number | undefined>(subprocessError.exitCode);
-	expectType<string | undefined>(subprocessError.signalName);
-	expectError(subprocessError.other);
+	if (error instanceof SubprocessError) {
+		expectType<string>(error.stdout);
+		expectType<string>(error.stderr);
+		expectType<string>(error.output);
+		expectType<string>(error.command);
+		expectType<number>(error.durationMs);
+		expectType<Result | SubprocessError | undefined>(error.pipedFrom);
+		expectType<Result | SubprocessError | undefined>(error.pipedFrom?.pipedFrom);
+		expectType<number | undefined>(error.pipedFrom?.durationMs);
+		expectAssignable<Error>(error);
+		expectType<number | undefined>(error.exitCode);
+		expectType<string | undefined>(error.signalName);
+		expectError(error.other);
+	}
 }
 
 expectAssignable<Options>({} as const);

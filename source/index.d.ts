@@ -134,7 +134,14 @@ When the subprocess fails, its promise is rejected with this error.
 
 Subprocesses fail either when their exit code is not `0` or when terminated by a signal. Other failure reasons include misspelling the command name or using the [`timeout`](https://nodejs.org/api/child_process.html#child_processspawncommand-args-options) option.
 */
-export type SubprocessError = Error & Result & {
+export class SubprocessError extends Error implements Result {
+	stdout: Result['stdout'];
+	stderr: Result['stderr'];
+	output: Result['output'];
+	command: Result['command'];
+	durationMs: Result['durationMs'];
+	pipedFrom?: Result['pipedFrom'];
+
 	/**
 	The numeric [exit code](https://en.wikipedia.org/wiki/Exit_status) of the subprocess that was run.
 
@@ -150,7 +157,7 @@ export type SubprocessError = Error & Result & {
 	If a signal terminated the subprocess, this property is defined and included in the [error message](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/message). Otherwise it is `undefined`.
 	*/
 	signalName?: string;
-};
+}
 
 /**
 Subprocess started by `spawn()`.

@@ -1,5 +1,5 @@
 import test from 'ava';
-import spawn from '../source/index.js';
+import spawn, {SubprocessError} from '../source/index.js';
 import {
 	isWindows,
 	isLinux,
@@ -9,6 +9,7 @@ import {
 } from './helpers/main.js';
 import {testString, secondTestString} from './helpers/arguments.js';
 import {
+	assertSubprocessErrorName,
 	assertFail,
 	assertSigterm,
 	assertEarlyError,
@@ -31,6 +32,12 @@ test('result.exitCode|signalName on success', async t => {
 	const {exitCode, signalName} = await spawn(...nodePrintStdout);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
+});
+
+test('Error is an instance of SubprocessError', async t => {
+	const error = await t.throwsAsync(spawn(...nodeEval('process.exit(2)')));
+	t.true(error instanceof SubprocessError);
+	assertSubprocessErrorName(t, error.name);
 });
 
 test('Error on non-0 exit code', async t => {
