@@ -12,6 +12,8 @@ export const fixturesPath = fileURLToPath(FIXTURES_URL);
 
 export const nodeDirectory = path.dirname(process.execPath);
 
+export const NODE_VERSION = Number(process.version.slice(1).split('.')[0]);
+
 export const earlyErrorOptions = {detached: 'true'};
 
 // TODO: replace with Array.fromAsync() after dropping support for Node <22.0.0

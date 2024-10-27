@@ -9,6 +9,7 @@ import {
 	FIXTURES_URL,
 	earlyErrorOptions,
 	arrayFromAsync,
+	NODE_VERSION,
 } from './helpers/main.js';
 import {
 	testString,
@@ -113,11 +114,20 @@ test('.pipe() destination fails due to stream error', async t => {
 	const nodeChildProcess = await second.nodeChildProcess;
 	nodeChildProcess.stdin.destroy(cause);
 	const secondError = await t.throwsAsync(second);
-	const firstError = await t.throwsAsync(first);
 	assertErrorEvent(t, secondError, cause);
-	assertErrorEvent(t, firstError, cause);
-	t.is(firstError.pipedFrom, undefined);
-	t.is(secondError.pipedFrom, firstError);
+
+	// Node 23 changed the behavior of `stream.pipeline()`
+	if (NODE_VERSION >= 23) {
+		const firstResult = await first;
+		t.is(firstResult.stdout, testString);
+		t.is(firstResult.pipedFrom, undefined);
+		t.is(secondError.pipedFrom, firstResult);
+	} else {
+		const firstError = await t.throwsAsync(first);
+		assertErrorEvent(t, firstError, cause);
+		t.is(firstError.pipedFrom, undefined);
+		t.is(secondError.pipedFrom, firstError);
+	}
 });
 
 test('.pipe() source and destination fail', async t => {
