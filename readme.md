@@ -34,12 +34,6 @@ For additional features, please check out [Execa](#execa).
 npm install nano-spawn
 ```
 
----
-
-*One of the maintainers [@ehmicky](https://github.com/ehmicky) is looking for a remote full-time position. Specialized in Node.js back-ends and CLIs, he led Netlify [Build](https://www.netlify.com/platform/core/build/), [Plugins](https://www.netlify.com/integrations/) and Configuration for 2.5 years. Feel free to contact him on [his website](https://www.mickael-hebert.com) or on [LinkedIn](https://www.linkedin.com/in/mickaelhebert/)!*
-
----
-
 ## Usage
 
 ### Run commands
