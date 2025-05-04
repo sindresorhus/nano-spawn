@@ -11,7 +11,7 @@ jobs:
       matrix:
         node-version:
           - 24
-          - 20
+          - 20.18
         os:
           - ubuntu
           - macos
