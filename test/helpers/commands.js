@@ -1,4 +1,13 @@
+import logProcessErrors from 'log-process-errors';
 import {testString, secondTestString} from './arguments.js';
+
+// Make tests fail if any warning (such as a deprecation warning) is emitted
+logProcessErrors({
+	exit: true,
+	onError(error) {
+		throw error;
+	},
+});
 
 export const nodeHanging = ['node'];
 export const [nodeHangingCommand] = nodeHanging;
