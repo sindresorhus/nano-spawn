@@ -33,7 +33,7 @@ test('Does not keep --inspect* Node flags', async t => {
 	t.false(stdout.includes(inspectCliFlag));
 });
 
-const TEST_NODE_VERSION = '18.0.0';
+const TEST_NODE_VERSION = '20.0.0';
 
 test.serial('Keeps Node version', async t => {
 	const {path: nodePath} = await getNode(TEST_NODE_VERSION);

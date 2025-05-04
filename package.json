@@ -17,7 +17,7 @@
 	},
 	"sideEffects": false,
 	"engines": {
-		"node": ">=18.19"
+		"node": ">=20"
 	},
 	"scripts": {
 		"test": "xo && c8 ava && npm run type",
