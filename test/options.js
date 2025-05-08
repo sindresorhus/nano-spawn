@@ -37,14 +37,9 @@ test.serial('options.env augments process.env', async t => {
 	delete process.env.TWO;
 });
 
-// See https://github.com/sindresorhus/nano-spawn/issues/89
-const safeSpawn = (file, commandArguments, options) => options.shell
-	? spawn([file, ...commandArguments].join(' '), options)
-	: spawn(file, commandArguments, options);
-
 const testArgv0 = async (t, shell) => {
-	const {stdout} = await safeSpawn(...nodePrintArgv0, {argv0: testString, shell});
-	t.is(stdout, shell ? nodePrintArgv0[0] : testString);
+	const {stdout} = await spawn(...nodePrintArgv0, {argv0: testString, shell});
+	t.is(stdout, shell ? process.execPath : testString);
 };
 
 test('Can pass options.argv0', testArgv0, false);
