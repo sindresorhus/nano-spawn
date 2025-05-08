@@ -5,7 +5,7 @@ import process from 'node:process';
 // When setting `shell: true` under-the-hood, we must manually escape the file and arguments.
 // This ensures arguments are properly split, and prevents command injection.
 export const applyForceShell = async (file, commandArguments, options) => await shouldForceShell(file, options)
-	? [[escapeFile(file), ...commandArguments.map(argument => escapeArgument(argument))].join(' '), [], {...options, shell: true}]
+	? [escapeFile(file), commandArguments.map(argument => escapeArgument(argument)), {...options, shell: true}]
 	: [file, commandArguments, options];
 
 // On Windows, running most executable files (except *.exe and *.com) requires using a shell.
