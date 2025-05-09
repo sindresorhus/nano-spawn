@@ -22,12 +22,12 @@ const shouldForceShell = async (file, {shell, cwd, env = process.env}) => proces
 // Therefore we must use the `PATH` environment variable and make `stat` calls to check this.
 // Environment variables are case-insensitive on Windows, so we check both `PATH` and `Path`.
 // eslint-disable-next-line no-return-assign
-const isExe = async (file, cwd, {Path = '', PATH = Path}) =>
+const isExe = (file, cwd, {Path = '', PATH = Path}) =>
 	// If the *.exe or *.com file extension was not omitted.
 	// Windows common file systems are case-insensitive.
 	exeExtensions.some(extension => file.toLowerCase().endsWith(extension))
 	// Use returned assignment to keep code small
-	|| (EXE_MEMO[`${file}\0${cwd}\0${PATH}`] ??= await mIsExe(file, cwd, PATH));
+	|| (EXE_MEMO[`${file}\0${cwd}\0${PATH}`] ??= mIsExe(file, cwd, PATH));
 
 // Memoize the following function, for performance
 const EXE_MEMO = {};
