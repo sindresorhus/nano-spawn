@@ -45,8 +45,8 @@ const mIsExe = async (file, cwd, PATH) => {
 	try {
 		await Promise.any(
 			exeExtensions.flatMap(extension => [cwd, ...parts]
-				.map(part => access(`${path.resolve(part, file)}${extension}`))
-			)
+				.map(part => access(`${path.resolve(part, file)}${extension}`)),
+			),
 		);
 	} catch {
 		return false;
