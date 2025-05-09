@@ -10,9 +10,10 @@ export const spawnSubprocess = async (file, commandArguments, options, context) 
 		// Not applied with file paths to `.../node` since those indicate a clear intent to use a specific Node version.
 		// This also provides a way to opting out, e.g. using `process.execPath` instead of `node` to discard current CLI flags.
 		// Does not work with shebangs, but those don't work cross-platform anyway.
-		[file, commandArguments] = ['node', 'node.exe'].includes(file.toLowerCase())
-			? [process.execPath, [...process.execArgv.filter(flag => !flag.startsWith('--inspect')), ...commandArguments]]
-			: [file, commandArguments];
+		if (['node', 'node.exe'].includes(file.toLowerCase())) {
+			file = process.execPath;
+			commandArguments = [...process.execArgv.filter(flag => !flag.startsWith('--inspect')), ...commandArguments];
+		}
 
 		[file, commandArguments, options] = await applyForceShell(file, commandArguments, options);
 		[file, commandArguments, options] = concatenateShell(file, commandArguments, options);
