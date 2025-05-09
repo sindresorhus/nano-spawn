@@ -1,3 +1,5 @@
+import * as readline from 'node:readline/promises';
+
 export const lineIterator = async function * (subprocess, {state}, streamName) {
 	// Prevent buffering when iterating.
 	// This would defeat one of the main goals of iterating: low memory consumption.
@@ -14,16 +16,7 @@ export const lineIterator = async function * (subprocess, {state}, streamName) {
 			return;
 		}
 
-		let buffer = '';
-		for await (const chunk of stream.iterator({destroyOnReturn: false})) {
-			const lines = `${buffer}${chunk}`.split(/\r?\n/);
-			buffer = lines.pop(); // Keep last line in buffer as it may not be complete
-			yield * lines;
-		}
-
-		if (buffer) {
-			yield buffer; // Yield any remaining data as the last line
-		}
+		yield * readline.createInterface({input: stream});
 	} finally {
 		await subprocess;
 	}
