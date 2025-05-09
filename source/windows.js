@@ -43,10 +43,11 @@ const mIsExe = async (file, cwd, PATH) => {
 
 	// For performance, parallelize and stop iteration as soon as an *.exe or *.com file is found
 	try {
-		await Promise.any(exeExtensions
-			.flatMap(extension =>
-				[cwd, ...parts].map(part => `${path.resolve(part, file)}${extension}`))
-			.map(possibleFile => access(possibleFile)));
+		await Promise.any(
+			exeExtensions.flatMap(extension => [cwd, ...parts]
+				.map(part => access(`${path.resolve(part, file)}${extension}`))
+			)
+		);
 	} catch {
 		return false;
 	}
