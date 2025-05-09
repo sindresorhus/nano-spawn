@@ -1,4 +1,4 @@
-import {stat} from 'node:fs/promises';
+import {access} from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -19,7 +19,7 @@ const shouldForceShell = async (file, {shell, cwd, env = process.env}) => proces
 
 // Detect whether the executable file is a *.exe or *.com file.
 // Windows allows omitting file extensions (present in the `PATHEXT` environment variable).
-// Therefore we must use the `PATH` environment variable and make `stat` calls to check this.
+// Therefore we must use the `PATH` environment variable and make `access` calls to check this.
 // Environment variables are case-insensitive on Windows, so we check both `PATH` and `Path`.
 // eslint-disable-next-line no-return-assign
 const isExe = async (file, cwd, {Path = '', PATH = Path}) =>
@@ -41,26 +41,17 @@ const mIsExe = async (file, cwd, PATH) => {
 		// `PATH` parts can be double quoted on Windows
 		.map(part => part.replace(/^"(.*)"$/, '$1'));
 
-	// For performance, parallelize and stop iteration as soon as an *.exe of *.com file is found
+	// For performance, parallelize and stop iteration as soon as an *.exe or *.com file is found
 	try {
-		await Promise.all(exeExtensions
+		await Promise.any(exeExtensions
 			.flatMap(extension =>
 				[cwd, ...parts].map(part => `${path.resolve(part, file)}${extension}`))
-			.map(async possibleFile => {
-				try {
-					await stat(possibleFile);
-				} catch {
-					return;
-				}
-
-				// eslint-disable-next-line no-throw-literal
-				throw 0;
-			}));
+			.map(possibleFile => access(possibleFile)));
 	} catch {
-		return true;
+		return false;
 	}
 
-	return false;
+	return true;
 };
 
 // Other file extensions require using a shell
