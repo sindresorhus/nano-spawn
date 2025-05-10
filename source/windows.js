@@ -31,6 +31,7 @@ const isExe = (file, cwd, {Path = '', PATH = Path}) =>
 const EXE_MEMO = {};
 // eslint-disable-next-line no-return-assign
 const memoize = function_ => (...arguments_) =>
+	// Use returned assignment to keep code small
 	EXE_MEMO[arguments_.join('\0')] ??= function_(...arguments_);
 
 const access = memoize(fs.access);
