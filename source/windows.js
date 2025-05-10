@@ -1,4 +1,4 @@
-import {access} from 'node:fs/promises';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -21,18 +21,20 @@ const shouldForceShell = async (file, {shell, cwd, env = process.env}) => proces
 // Windows allows omitting file extensions (present in the `PATHEXT` environment variable).
 // Therefore we must use the `PATH` environment variable and make `access` calls to check this.
 // Environment variables are case-insensitive on Windows, so we check both `PATH` and `Path`.
-// eslint-disable-next-line no-return-assign
 const isExe = (file, cwd, {Path = '', PATH = Path}) =>
 	// If the *.exe or *.com file extension was not omitted.
 	// Windows common file systems are case-insensitive.
 	exeExtensions.some(extension => file.toLowerCase().endsWith(extension))
-	// Use returned assignment to keep code small
-	|| (EXE_MEMO[`${file}\0${cwd}\0${PATH}`] ??= mIsExe(file, cwd, PATH));
+	|| mIsExe(file, cwd, PATH);
 
-// Memoize the following function, for performance
+// Memoize the `mIsExe` and `fs.access`, for performance
 const EXE_MEMO = {};
+// eslint-disable-next-line no-return-assign
+const memoize = function_ => (...arguments_) =>
+	EXE_MEMO[arguments_.join('\0')] ??= function_(...arguments_);
 
-const mIsExe = async (file, cwd, PATH) => {
+const access = memoize(fs.access);
+const mIsExe = memoize(async (file, cwd, PATH) => {
 	const parts = PATH
 		// `PATH` is ;-separated on Windows
 		.split(path.delimiter)
@@ -44,8 +46,8 @@ const mIsExe = async (file, cwd, PATH) => {
 	// For performance, parallelize and stop iteration as soon as an *.exe or *.com file is found
 	try {
 		await Promise.any(
-			exeExtensions.flatMap(extension => [cwd, ...parts]
-				.map(part => access(`${path.resolve(part, file)}${extension}`)),
+			[cwd, ...parts].flatMap(part => exeExtensions
+				.map(extension => access(`${path.resolve(part, file)}${extension}`)),
 			),
 		);
 	} catch {
@@ -53,7 +55,7 @@ const mIsExe = async (file, cwd, PATH) => {
 	}
 
 	return true;
-};
+});
 
 // Other file extensions require using a shell
 const exeExtensions = ['.exe', '.com'];
