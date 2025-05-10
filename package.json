@@ -62,6 +62,7 @@
 	},
 	"ava": {
 		"concurrency": 1,
-		"timeout": "240s"
+		"timeout": "240s",
+		"require": ["./test/helpers/setup.js"]
 	}
 }
