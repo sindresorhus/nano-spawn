@@ -2,11 +2,10 @@ import childProcess from 'node:child_process';
 import process from 'node:process';
 import assert from 'node:assert/strict';
 
-const getCodePage = () =>
-	childProcess.execSync('chcp', {encoding: 'utf8'})
-		.trim()
-		.split(' ')
-		.pop();
+const getCodePage = () => childProcess.execSync('chcp', {encoding: 'utf8'})
+	.trim()
+	.split(' ')
+	.pop();
 
 const updateCodePage = codePage => {
 	childProcess.execSync(`chcp ${codePage}`);
