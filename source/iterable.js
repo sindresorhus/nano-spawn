@@ -16,10 +16,23 @@ export const lineIterator = async function * (subprocess, {state}, streamName) {
 			return;
 		}
 
+		handleErrors(subprocess);
 		yield * readline.createInterface({input: stream});
 	} finally {
 		await subprocess;
 	}
+};
+
+// When the `subprocess` promise is rejected, we await it in the `finally`
+// block. However, this might not happen right away, so an `unhandledRejection`
+// error is emitted first, crashing the process. This prevents it.
+// This is safe since we are guaranteed to propagate the `subprocess` error
+// with the `finally` block.
+// See https://github.com/sindresorhus/nano-spawn/issues/104
+const handleErrors = async subprocess => {
+	try {
+		await subprocess;
+	} catch {}
 };
 
 // Merge two async iterators into one

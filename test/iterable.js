@@ -8,7 +8,7 @@ import {
 	fourthTestString,
 	multibyteString,
 } from './helpers/arguments.js';
-import {assertFail, assertErrorEvent} from './helpers/assert.js';
+import {assertAbortError, assertFail, assertErrorEvent} from './helpers/assert.js';
 import {
 	nodeEval,
 	nodePrintStdout,
@@ -19,6 +19,7 @@ import {
 	nodePassThrough,
 	nodePassThroughPrint,
 	nodePassThroughPrintFail,
+	nodeHanging,
 } from './helpers/commands.js';
 
 const getIterable = (subprocess, iterableType) => iterableType === ''
@@ -221,6 +222,21 @@ const testStreamIterateAllError = async (t, streamName) => {
 
 test('Handles subprocess.stdout error in subprocess[Symbol.asyncIterator]', testStreamIterateAllError, 'stdout');
 test('Handles subprocess.stderr error in subprocess[Symbol.asyncIterator]', testStreamIterateAllError, 'stderr');
+
+const testStreamIterateSignal = async (t, streamName) => {
+	const signal = AbortSignal.timeout(0);
+	const subprocess = spawn(...nodeHanging, {signal});
+	const error = await t.throwsAsync(arrayFromAsync(subprocess[streamName]));
+	assertAbortError(t, error, signal.reason);
+	const promiseError = await t.throwsAsync(subprocess);
+	t.is(promiseError, error);
+	t.is(promiseError.stdout, '');
+	t.is(promiseError.stderr, '');
+	t.is(promiseError.output, '');
+};
+
+test('Handles subprocess.stdout error with the "signal" option', testStreamIterateSignal, 'stdout');
+test('Handles subprocess.stderr error with the "signal" option', testStreamIterateSignal, 'stderr');
 
 // eslint-disable-next-line max-params
 const iterateOnOutput = async (t, subprocess, state, cause, shouldThrow, iterableType) => {
