@@ -13,8 +13,8 @@ export const lineIterator = async function * (subprocess, {state}, streamName, i
 	try {
 		const {[streamName]: stream} = await subprocess.nodeChildProcess;
 		if (!stream) {
-			state.ignoredIteration[index] = true;
-			const message = state.ignoredIteration.every(Boolean)
+			state.nonIterable[index] = true;
+			const message = state.nonIterable.every(Boolean)
 				? 'either the option `stdout` or `stderr`'
 				: `the option \`${streamName}\``;
 			throw new TypeError(
@@ -64,16 +64,16 @@ export const combineAsyncIterators = async function * ({state}, ...iterators) {
 	}
 };
 
-const getNext = async (iterator, index, {ignoredIteration}) => {
+const getNext = async (iterator, index, {nonIterable}) => {
 	try {
 		return await iterator.next();
 	} catch (error) {
-		return shouldIgnoreError(ignoredIteration, index)
+		return shouldIgnoreError(nonIterable, index)
 			? iterator.return()
 			: iterator.throw(error);
 	}
 };
 
-const shouldIgnoreError = (ignoredIteration, index) => ignoredIteration.every(Boolean)
-	? index !== ignoredIteration.length - 1
-	: ignoredIteration[index];
+const shouldIgnoreError = (nonIterable, index) => nonIterable.every(Boolean)
+	? index !== nonIterable.length - 1
+	: nonIterable[index];

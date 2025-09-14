@@ -5,7 +5,7 @@ export const getContext = raw => ({
 	start: process.hrtime.bigint(),
 	command: raw.map(part => getCommandPart(stripVTControlCharacters(part))).join(' '),
 	state: {
-		stdout: '', stderr: '', output: '', isIterating: {}, ignoredIteration: [false, false],
+		stdout: '', stderr: '', output: '', isIterating: {}, nonIterable: [false, false],
 	},
 });
 
