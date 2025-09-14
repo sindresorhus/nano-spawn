@@ -14,7 +14,7 @@ export const lineIterator = async function * (subprocess, {state}, streamName, i
 		const {[streamName]: stream} = await subprocess.nodeChildProcess;
 		if (!stream) {
 			state.ignoredIteration[index] = true;
-			throw new Error(`The subprocess cannot be iterated unless the option \`${streamName}\` is 'pipe'.`);
+			throw new TypeError(`The subprocess cannot be iterated unless the option \`${streamName}\` is 'pipe'.`);
 		}
 
 		handleErrors(subprocess);
