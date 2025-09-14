@@ -1,6 +1,6 @@
 import * as readline from 'node:readline/promises';
 
-export const lineIterator = async function * (subprocess, {state}, streamName) {
+export const lineIterator = async function * (subprocess, {state}, streamName, index) {
 	// Prevent buffering when iterating.
 	// This would defeat one of the main goals of iterating: low memory consumption.
 	if (state.isIterating[streamName] === false) {
@@ -13,7 +13,8 @@ export const lineIterator = async function * (subprocess, {state}, streamName) {
 	try {
 		const {[streamName]: stream} = await subprocess.nodeChildProcess;
 		if (!stream) {
-			return;
+			state.ignoredIteration[index] = true;
+			throw new Error(`The subprocess cannot be iterated unless the option \`${streamName}\` is 'pipe'.`);
 		}
 
 		handleErrors(subprocess);
@@ -36,11 +37,11 @@ const handleErrors = async subprocess => {
 };
 
 // Merge two async iterators into one
-export const combineAsyncIterators = async function * (...iterators) {
+export const combineAsyncIterators = async function * ({state}, ...iterators) {
 	try {
 		let promises = [];
 		while (iterators.length > 0) {
-			promises = iterators.map((iterator, index) => promises[index] ?? getNext(iterator));
+			promises = iterators.map((iterator, index) => promises[index] ?? getNext(iterator, index, state));
 			// eslint-disable-next-line no-await-in-loop
 			const [{value, done}, index] = await Promise.race(promises
 				.map((promise, index) => Promise.all([promise, index])));
@@ -58,10 +59,12 @@ export const combineAsyncIterators = async function * (...iterators) {
 	}
 };
 
-const getNext = async iterator => {
+const getNext = async (iterator, index, {ignoredIteration}) => {
 	try {
 		return await iterator.next();
 	} catch (error) {
-		await iterator.throw(error);
+		return ignoredIteration[index] && !ignoredIteration.every(Boolean)
+			? iterator.return()
+			: iterator.throw(error);
 	}
 };

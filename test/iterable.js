@@ -80,10 +80,10 @@ for (let index = 0; index < ${length}; index += 1) {
 	t.is(output, '');
 });
 
-test('subprocess.stdout has no iterations if options.stdout "ignore"', async t => {
+test('subprocess.stdout throws if options.stdout "ignore"', async t => {
 	const subprocess = spawn(...nodePrintBoth, {stdout: 'ignore'});
-	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(subprocess.stdout), arrayFromAsync(subprocess.stderr)]);
-	t.deepEqual(stdoutLines, []);
+	const [{reason}, {value: stderrLines}] = await Promise.allSettled([arrayFromAsync(subprocess.stdout), arrayFromAsync(subprocess.stderr)]);
+	t.is(reason.message, 'The subprocess cannot be iterated unless the option `stdout` is \'pipe\'.');
 	t.deepEqual(stderrLines, [secondTestString]);
 	const {stdout, stderr, output} = await subprocess;
 	t.is(stdout, '');
@@ -91,11 +91,11 @@ test('subprocess.stdout has no iterations if options.stdout "ignore"', async t =
 	t.is(output, '');
 });
 
-test('subprocess.stderr has no iterations if options.stderr "ignore"', async t => {
+test('subprocess.stderr throws if options.stderr "ignore"', async t => {
 	const subprocess = spawn(...nodePrintBoth, {stderr: 'ignore'});
-	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(subprocess.stdout), arrayFromAsync(subprocess.stderr)]);
+	const [{value: stdoutLines}, {reason}] = await Promise.allSettled([arrayFromAsync(subprocess.stdout), arrayFromAsync(subprocess.stderr)]);
+	t.is(reason.message, 'The subprocess cannot be iterated unless the option `stderr` is \'pipe\'.');
 	t.deepEqual(stdoutLines, [testString]);
-	t.deepEqual(stderrLines, []);
 	const {stdout, stderr, output} = await subprocess;
 	t.is(stdout, '');
 	t.is(stderr, '');
@@ -124,8 +124,8 @@ test('subprocess[Symbol.asyncIterator] has iterations if only options.stderr "ig
 
 test('subprocess[Symbol.asyncIterator] has no iterations if only options.stdout + options.stderr "ignore"', async t => {
 	const subprocess = spawn(...nodePrintBoth, {stdout: 'ignore', stderr: 'ignore'});
-	const lines = await arrayFromAsync(subprocess);
-	t.deepEqual(lines, []);
+	const error = await t.throwsAsync(arrayFromAsync(subprocess));
+	t.is(error.message, 'The subprocess cannot be iterated unless the option `stdout` is \'pipe\'.');
 	const {stdout, stderr, output} = await subprocess;
 	t.is(stdout, '');
 	t.is(stderr, '');
