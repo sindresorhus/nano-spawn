@@ -48,8 +48,8 @@ const concatenateShell = (file, commandArguments, options) => options.shell && c
 const bufferOutput = (stream, {state}, streamName) => {
 	if (stream) {
 		stream.setEncoding('utf8');
-		if (!state.isIterating) {
-			state.isIterating = false;
+		if (!state.isIterating[streamName]) {
+			state.isIterating[streamName] = false;
 			stream.on('data', chunk => {
 				state[streamName] += chunk;
 				state.output += chunk;

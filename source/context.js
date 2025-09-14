@@ -4,7 +4,9 @@ import {stripVTControlCharacters} from 'node:util';
 export const getContext = raw => ({
 	start: process.hrtime.bigint(),
 	command: raw.map(part => getCommandPart(stripVTControlCharacters(part))).join(' '),
-	state: {stdout: '', stderr: '', output: ''},
+	state: {
+		stdout: '', stderr: '', output: '', isIterating: {},
+	},
 });
 
 const getCommandPart = part => /[^\w./-]/.test(part)
