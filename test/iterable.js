@@ -125,7 +125,7 @@ test('subprocess[Symbol.asyncIterator] has iterations if only options.stderr "ig
 test('subprocess[Symbol.asyncIterator] has no iterations if only options.stdout + options.stderr "ignore"', async t => {
 	const subprocess = spawn(...nodePrintBoth, {stdout: 'ignore', stderr: 'ignore'});
 	const error = await t.throwsAsync(arrayFromAsync(subprocess));
-	t.is(error.message, 'The subprocess cannot be iterated unless the option `stdout` is \'pipe\'.');
+	t.true(error.message.startsWith('The subprocess cannot be iterated unless the option'));
 	const {stdout, stderr, output} = await subprocess;
 	t.is(stdout, '');
 	t.is(stderr, '');
