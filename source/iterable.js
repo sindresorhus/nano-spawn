@@ -14,7 +14,12 @@ export const lineIterator = async function * (subprocess, {state}, streamName, i
 		const {[streamName]: stream} = await subprocess.nodeChildProcess;
 		if (!stream) {
 			state.ignoredIteration[index] = true;
-			throw new TypeError(`The subprocess cannot be iterated unless the option \`${streamName}\` is 'pipe'.`);
+			const message = state.ignoredIteration.every(Boolean)
+				? 'either the option `stdout` or `stderr`'
+				: `the option \`${streamName}\``;
+			throw new TypeError(
+				`The subprocess cannot be iterated unless ${message} is 'pipe'.`,
+			);
 		}
 
 		handleErrors(subprocess);
@@ -63,8 +68,12 @@ const getNext = async (iterator, index, {ignoredIteration}) => {
 	try {
 		return await iterator.next();
 	} catch (error) {
-		return ignoredIteration[index] && !ignoredIteration.every(Boolean)
+		return shouldIgnoreError(ignoredIteration, index)
 			? iterator.return()
 			: iterator.throw(error);
 	}
 };
+
+const shouldIgnoreError = (ignoredIteration, index) => ignoredIteration.every(Boolean)
+	? index !== ignoredIteration.length - 1
+	: ignoredIteration[index];
