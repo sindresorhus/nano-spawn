@@ -1,3 +1,4 @@
+import {spawnSync} from 'node:child_process';
 import {nonExistentCommand, nodeHangingCommand, nodeEvalCommandStart} from './commands.js';
 
 export const assertSubprocessErrorName = (t, name) => {
@@ -23,13 +24,24 @@ export const assertNonExistent = (t, {name, exitCode, signalName, command, messa
 	assertDurationMs(t, durationMs);
 };
 
+// Support localized error messages on non-English Windows.
+let nonExistentCommandOutput;
+const toNonExistentCommandOutput = command => {
+	if (typeof nonExistentCommandOutput !== 'string') {
+		const {stderr} = spawnSync(nonExistentCommand, {shell: true, encoding: 'utf8'});
+		nonExistentCommandOutput = stderr.replace(/\r?\n$/, '');
+	}
+
+	return nonExistentCommandOutput.replaceAll(nonExistentCommand, command.split(/[ /]/)[0]);
+};
+
 export const assertWindowsNonExistent = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
 	assertSubprocessErrorName(t, name);
 	t.is(exitCode, 1);
 	t.is(signalName, undefined);
 	t.is(command, expectedCommand);
 	t.is(message, `Command failed with exit code 1: ${expectedCommand}`);
-	t.true(stderr.includes('not recognized as an internal or external command'));
+	t.is(stderr, toNonExistentCommandOutput(expectedCommand));
 	t.is(cause, undefined);
 	assertDurationMs(t, durationMs);
 };

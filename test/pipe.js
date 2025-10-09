@@ -334,6 +334,14 @@ test('.pipe() + stdout iteration, destination fail', async t => {
 });
 
 test('.pipe() with EPIPE', async t => {
+	// Skip this test if the current OS is lacking the Unix utility `head`
+	try {
+		await spawn('head', ['--version']);
+	} catch {
+		t.pass();
+		return;
+	}
+
 	const subprocess = spawn(...nodeEval(`setInterval(() => {
 	console.log("${testString}");
 }, 0);

@@ -1,6 +1,6 @@
 {
 	"name": "nano-spawn",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"description": "Tiny process execution for humans — a better child_process",
 	"license": "MIT",
 	"repository": "sindresorhus/nano-spawn",

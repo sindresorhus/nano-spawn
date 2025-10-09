@@ -8,7 +8,7 @@ import {
 	fourthTestString,
 	multibyteString,
 } from './helpers/arguments.js';
-import {assertFail, assertErrorEvent} from './helpers/assert.js';
+import {assertAbortError, assertFail, assertErrorEvent} from './helpers/assert.js';
 import {
 	nodeEval,
 	nodePrintStdout,
@@ -19,6 +19,7 @@ import {
 	nodePassThrough,
 	nodePassThroughPrint,
 	nodePassThroughPrintFail,
+	nodeHanging,
 } from './helpers/commands.js';
 
 const getIterable = (subprocess, iterableType) => iterableType === ''
@@ -79,10 +80,10 @@ for (let index = 0; index < ${length}; index += 1) {
 	t.is(output, '');
 });
 
-test('subprocess.stdout has no iterations if options.stdout "ignore"', async t => {
+test('subprocess.stdout throws if options.stdout "ignore"', async t => {
 	const subprocess = spawn(...nodePrintBoth, {stdout: 'ignore'});
-	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(subprocess.stdout), arrayFromAsync(subprocess.stderr)]);
-	t.deepEqual(stdoutLines, []);
+	const [{reason}, {value: stderrLines}] = await Promise.allSettled([arrayFromAsync(subprocess.stdout), arrayFromAsync(subprocess.stderr)]);
+	t.is(reason.message, 'The subprocess cannot be iterated unless the option `stdout` is \'pipe\'.');
 	t.deepEqual(stderrLines, [secondTestString]);
 	const {stdout, stderr, output} = await subprocess;
 	t.is(stdout, '');
@@ -90,11 +91,11 @@ test('subprocess.stdout has no iterations if options.stdout "ignore"', async t =
 	t.is(output, '');
 });
 
-test('subprocess.stderr has no iterations if options.stderr "ignore"', async t => {
+test('subprocess.stderr throws if options.stderr "ignore"', async t => {
 	const subprocess = spawn(...nodePrintBoth, {stderr: 'ignore'});
-	const [stdoutLines, stderrLines] = await Promise.all([arrayFromAsync(subprocess.stdout), arrayFromAsync(subprocess.stderr)]);
+	const [{value: stdoutLines}, {reason}] = await Promise.allSettled([arrayFromAsync(subprocess.stdout), arrayFromAsync(subprocess.stderr)]);
+	t.is(reason.message, 'The subprocess cannot be iterated unless the option `stderr` is \'pipe\'.');
 	t.deepEqual(stdoutLines, [testString]);
-	t.deepEqual(stderrLines, []);
 	const {stdout, stderr, output} = await subprocess;
 	t.is(stdout, '');
 	t.is(stderr, '');
@@ -121,10 +122,10 @@ test('subprocess[Symbol.asyncIterator] has iterations if only options.stderr "ig
 	t.is(output, '');
 });
 
-test('subprocess[Symbol.asyncIterator] has no iterations if only options.stdout + options.stderr "ignore"', async t => {
+test('subprocess[Symbol.asyncIterator] throws if only options.stdout + options.stderr "ignore"', async t => {
 	const subprocess = spawn(...nodePrintBoth, {stdout: 'ignore', stderr: 'ignore'});
-	const lines = await arrayFromAsync(subprocess);
-	t.deepEqual(lines, []);
+	const error = await t.throwsAsync(arrayFromAsync(subprocess));
+	t.is(error.message, 'The subprocess cannot be iterated unless either the option `stdout` or `stderr` is \'pipe\'.');
 	const {stdout, stderr, output} = await subprocess;
 	t.is(stdout, '');
 	t.is(stderr, '');
@@ -138,8 +139,8 @@ test('subprocess.stdout has no iterations but waits for the subprocess if option
 	const promiseError = await t.throwsAsync(subprocess);
 	t.is(promiseError, error);
 	t.is(promiseError.stdout, '');
-	t.is(promiseError.stderr, '');
-	t.is(promiseError.output, '');
+	t.is(promiseError.stderr, secondTestString);
+	t.is(promiseError.output, secondTestString);
 });
 
 const testIterationLate = async (t, iterableType) => {
@@ -192,8 +193,8 @@ test.serial('subprocess.stdout works with multibyte sequences', async t => {
 	t.is(output, '');
 });
 
-const testStreamIterateError = async (t, streamName) => {
-	const subprocess = spawn(...nodePrintStdout);
+const testStreamIterateError = async (t, streamName, fixture) => {
+	const subprocess = spawn(...fixture);
 	const cause = new Error(testString);
 	destroySubprocessStream(subprocess, cause, streamName);
 	const error = await t.throwsAsync(arrayFromAsync(subprocess[streamName]));
@@ -204,8 +205,8 @@ const testStreamIterateError = async (t, streamName) => {
 	t.is(promiseError.output, '');
 };
 
-test('Handles subprocess.stdout error', testStreamIterateError, 'stdout');
-test('Handles subprocess.stderr error', testStreamIterateError, 'stderr');
+test('Handles subprocess.stdout error', testStreamIterateError, 'stdout', nodePrintStdout);
+test('Handles subprocess.stderr error', testStreamIterateError, 'stderr', nodePrintStderr);
 
 const testStreamIterateAllError = async (t, streamName) => {
 	const subprocess = spawn(...nodePrintStdout);
@@ -221,6 +222,21 @@ const testStreamIterateAllError = async (t, streamName) => {
 
 test('Handles subprocess.stdout error in subprocess[Symbol.asyncIterator]', testStreamIterateAllError, 'stdout');
 test('Handles subprocess.stderr error in subprocess[Symbol.asyncIterator]', testStreamIterateAllError, 'stderr');
+
+const testStreamIterateSignal = async (t, streamName) => {
+	const signal = AbortSignal.timeout(0);
+	const subprocess = spawn(...nodeHanging, {signal});
+	const error = await t.throwsAsync(arrayFromAsync(subprocess[streamName]));
+	assertAbortError(t, error, signal.reason);
+	const promiseError = await t.throwsAsync(subprocess);
+	t.is(promiseError, error);
+	t.is(promiseError.stdout, '');
+	t.is(promiseError.stderr, '');
+	t.is(promiseError.output, '');
+};
+
+test('Handles subprocess.stdout error with the "signal" option', testStreamIterateSignal, 'stdout');
+test('Handles subprocess.stderr error with the "signal" option', testStreamIterateSignal, 'stderr');
 
 // eslint-disable-next-line max-params
 const iterateOnOutput = async (t, subprocess, state, cause, shouldThrow, iterableType) => {
@@ -293,3 +309,17 @@ test.serial('subprocess.stdout iteration break waits for the subprocess failure'
 test.serial('subprocess[Symbol.asyncIterator] iteration break waits for the subprocess failure', testIterationFail, false, '');
 test.serial('subprocess.stdout iteration exception waits for the subprocess failure', testIterationFail, true, 'stdout');
 test.serial('subprocess[Symbol.asyncIterator] iteration exception waits for the subprocess failure', testIterationFail, true, '');
+
+// eslint-disable-next-line max-params
+const testPartialIteration = async (t, streamName, otherStreamName, expectedLines, expectedOutput) => {
+	const subprocess = spawn(...nodePrintBoth);
+	const lines = await arrayFromAsync(subprocess[streamName]);
+	t.deepEqual(lines, [expectedLines]);
+	const result = await subprocess;
+	t.is(result[streamName], '');
+	t.is(result[otherStreamName], expectedOutput);
+	t.is(result.output, expectedOutput);
+};
+
+test('subprocess.stderr is still buffered when subprocess.stdout is iterated', testPartialIteration, 'stdout', 'stderr', testString, secondTestString);
+test('subprocess.stdout is still buffered when subprocess.stderr is iterated', testPartialIteration, 'stderr', 'stdout', secondTestString, testString);
