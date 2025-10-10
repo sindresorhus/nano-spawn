@@ -1,7 +1,7 @@
 import type {ChildProcess, SpawnOptions} from 'node:child_process';
 
 type StdioOption = Readonly<Exclude<SpawnOptions['stdio'], undefined>[number]>;
-type StdinOption = StdioOption | NonNullable<{readonly string?: string}>;
+type StdinOption = StdioOption | {readonly string?: string};
 
 /**
 Options passed to `nano-spawn`.
