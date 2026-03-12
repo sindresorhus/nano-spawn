@@ -49,7 +49,9 @@ export const getResultError = (error, instance, context) => Object.assign(
 
 const getErrorInstance = (error, {command}) => error instanceof SubprocessError
 	? error
-	: new SubprocessError(`Command failed: ${command}`, {cause: error});
+	: error?.name === 'AbortError'
+		? error
+		: new SubprocessError(`Command failed: ${command}`, {cause: error});
 
 export class SubprocessError extends Error {
 	name = 'SubprocessError';
