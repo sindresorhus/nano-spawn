@@ -44,7 +44,7 @@ const checkFailure = ({command}, {exitCode, signalName}) => {
 export const getResultError = (error, instance, context, {signal}) => Object.assign(
 	getErrorInstance(error, context),
 	getErrorOutput(instance),
-	{isCanceled: error?.code === 'ABORT_ERR' && error.cause === signal?.reason},
+	{isCanceled: signal?.aborted === true},
 	getOutputs(context),
 );
 

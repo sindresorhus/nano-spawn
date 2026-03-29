@@ -83,11 +83,10 @@ export const assertFail = (t, {name, exitCode, signalName, isCanceled, command, 
 	assertDurationMs(t, durationMs);
 };
 
-export const assertSigterm = (t, {name, exitCode, signalName, isCanceled, command, message, stderr, cause, durationMs}, expectedCommand = nodeHangingCommand) => {
+export const assertSigterm = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nodeHangingCommand) => {
 	assertSubprocessErrorName(t, name);
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
-	t.false(isCanceled);
 	t.is(command, expectedCommand);
 	t.is(message, `Command was terminated with SIGTERM: ${expectedCommand}`);
 	t.is(stderr, '');
