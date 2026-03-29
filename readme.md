@@ -247,6 +247,12 @@ The name of the [signal](https://en.wikipedia.org/wiki/Signal_(IPC)) (like [`SIG
 
 If a signal terminated the subprocess, this property is defined and included in the [error message](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/message). Otherwise it is `undefined`.
 
+##### subprocessError.isCanceled
+
+_Type_: `boolean`
+
+Whether the subprocess was canceled using the [`signal` option](https://nodejs.org/api/child_process.html#child-processspawncommand-args-options).
+
 ## Windows support
 
 This package fixes several cross-platform issues with [`node:child_process`](https://nodejs.org/api/child_process.html). It brings full Windows support for:

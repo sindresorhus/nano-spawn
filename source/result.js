@@ -1,10 +1,10 @@
 import {once, on} from 'node:events';
 import process from 'node:process';
 
-export const getResult = async (nodeChildProcess, {input}, context) => {
+export const getResult = async (nodeChildProcess, options, context) => {
 	const instance = await nodeChildProcess;
-	if (input !== undefined) {
-		instance.stdin.end(input);
+	if (options.input !== undefined) {
+		instance.stdin.end(options.input);
 	}
 
 	const onClose = once(instance, 'close');
@@ -18,7 +18,7 @@ export const getResult = async (nodeChildProcess, {input}, context) => {
 		return getOutputs(context);
 	} catch (error) {
 		await Promise.allSettled([onClose]);
-		throw getResultError(error, instance, context);
+		throw getResultError(error, instance, context, options);
 	}
 };
 
@@ -41,9 +41,10 @@ const checkFailure = ({command}, {exitCode, signalName}) => {
 	}
 };
 
-export const getResultError = (error, instance, context) => Object.assign(
+export const getResultError = (error, instance, context, {signal}) => Object.assign(
 	getErrorInstance(error, context),
 	getErrorOutput(instance),
+	{isCanceled: error?.code === 'ABORT_ERR' && error.cause === signal?.reason},
 	getOutputs(context),
 );
 

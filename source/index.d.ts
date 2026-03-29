@@ -157,6 +157,11 @@ export class SubprocessError extends Error implements Result {
 	If a signal terminated the subprocess, this property is defined and included in the [error message](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/message). Otherwise it is `undefined`.
 	*/
 	signalName?: string;
+
+	/**
+	Whether the subprocess was canceled using the [`signal` option](https://nodejs.org/api/child_process.html#child-processspawncommand-args-options).
+	*/
+	isCanceled: boolean;
 }
 
 /**

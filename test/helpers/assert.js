@@ -10,10 +10,11 @@ export const assertDurationMs = (t, durationMs) => {
 	t.true(durationMs >= 0);
 };
 
-export const assertNonExistent = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, commandStart = nonExistentCommand, expectedCommand = commandStart) => {
+export const assertNonExistent = (t, {name, exitCode, signalName, isCanceled, command, message, stderr, cause, durationMs}, commandStart = nonExistentCommand, expectedCommand = commandStart) => {
 	assertSubprocessErrorName(t, name);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
+	t.false(isCanceled);
 	t.is(command, expectedCommand);
 	t.is(message, `Command failed: ${expectedCommand}`);
 	t.is(stderr, '');
@@ -35,10 +36,11 @@ const toNonExistentCommandOutput = command => {
 	return nonExistentCommandOutput.replaceAll(nonExistentCommand, command.split(/[ /]/)[0]);
 };
 
-export const assertWindowsNonExistent = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
+export const assertWindowsNonExistent = (t, {name, exitCode, signalName, isCanceled, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
 	assertSubprocessErrorName(t, name);
 	t.is(exitCode, 1);
 	t.is(signalName, undefined);
+	t.false(isCanceled);
 	t.is(command, expectedCommand);
 	t.is(message, `Command failed with exit code 1: ${expectedCommand}`);
 	t.is(stderr, toNonExistentCommandOutput(expectedCommand));
@@ -46,10 +48,11 @@ export const assertWindowsNonExistent = (t, {name, exitCode, signalName, command
 	assertDurationMs(t, durationMs);
 };
 
-export const assertUnixNonExistentShell = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
+export const assertUnixNonExistentShell = (t, {name, exitCode, signalName, isCanceled, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
 	assertSubprocessErrorName(t, name);
 	t.is(exitCode, 127);
 	t.is(signalName, undefined);
+	t.false(isCanceled);
 	t.is(command, expectedCommand);
 	t.is(message, `Command failed with exit code 127: ${expectedCommand}`);
 	t.true(stderr.includes('not found'));
@@ -57,10 +60,11 @@ export const assertUnixNonExistentShell = (t, {name, exitCode, signalName, comma
 	assertDurationMs(t, durationMs);
 };
 
-export const assertUnixNotFound = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
+export const assertUnixNotFound = (t, {name, exitCode, signalName, isCanceled, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
 	assertSubprocessErrorName(t, name);
 	t.is(exitCode, 127);
 	t.is(signalName, undefined);
+	t.false(isCanceled);
 	t.is(command, expectedCommand);
 	t.is(message, `Command failed with exit code 127: ${expectedCommand}`);
 	t.true(stderr.includes('No such file or directory'));
@@ -68,20 +72,22 @@ export const assertUnixNotFound = (t, {name, exitCode, signalName, command, mess
 	assertDurationMs(t, durationMs);
 };
 
-export const assertFail = (t, {name, exitCode, signalName, command, message, cause, durationMs}, commandStart = nodeEvalCommandStart) => {
+export const assertFail = (t, {name, exitCode, signalName, isCanceled, command, message, cause, durationMs}, commandStart = nodeEvalCommandStart) => {
 	assertSubprocessErrorName(t, name);
 	t.is(exitCode, 2);
 	t.is(signalName, undefined);
+	t.false(isCanceled);
 	t.true(command.startsWith(commandStart));
 	t.true(message.startsWith(`Command failed with exit code 2: ${commandStart}`));
 	t.is(cause, undefined);
 	assertDurationMs(t, durationMs);
 };
 
-export const assertSigterm = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCommand = nodeHangingCommand) => {
+export const assertSigterm = (t, {name, exitCode, signalName, isCanceled, command, message, stderr, cause, durationMs}, expectedCommand = nodeHangingCommand) => {
 	assertSubprocessErrorName(t, name);
 	t.is(exitCode, undefined);
 	t.is(signalName, 'SIGTERM');
+	t.false(isCanceled);
 	t.is(command, expectedCommand);
 	t.is(message, `Command was terminated with SIGTERM: ${expectedCommand}`);
 	t.is(stderr, '');
@@ -89,10 +95,11 @@ export const assertSigterm = (t, {name, exitCode, signalName, command, message, 
 	assertDurationMs(t, durationMs);
 };
 
-export const assertEarlyError = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, commandStart = nodeEvalCommandStart) => {
+export const assertEarlyError = (t, {name, exitCode, signalName, isCanceled, command, message, stderr, cause, durationMs}, commandStart = nodeEvalCommandStart) => {
 	assertSubprocessErrorName(t, name);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
+	t.false(isCanceled);
 	t.true(command.startsWith(commandStart));
 	t.true(message.startsWith(`Command failed: ${commandStart}`));
 	t.is(stderr, '');
@@ -101,10 +108,11 @@ export const assertEarlyError = (t, {name, exitCode, signalName, command, messag
 	assertDurationMs(t, durationMs);
 };
 
-export const assertAbortError = (t, {name, exitCode, signalName, command, stderr, message, cause, durationMs}, expectedCause, expectedCommand = nodeHangingCommand) => {
+export const assertAbortError = (t, {name, exitCode, signalName, isCanceled, command, stderr, message, cause, durationMs}, expectedCause, expectedCommand = nodeHangingCommand) => {
 	assertSubprocessErrorName(t, name);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
+	t.true(isCanceled);
 	t.is(command, expectedCommand);
 	t.is(message, `Command failed: ${expectedCommand}`);
 	t.is(stderr, '');
@@ -113,10 +121,11 @@ export const assertAbortError = (t, {name, exitCode, signalName, command, stderr
 	assertDurationMs(t, durationMs);
 };
 
-export const assertErrorEvent = (t, {name, exitCode, signalName, command, message, stderr, cause, durationMs}, expectedCause, commandStart = nodeEvalCommandStart) => {
+export const assertErrorEvent = (t, {name, exitCode, signalName, isCanceled, command, message, stderr, cause, durationMs}, expectedCause, commandStart = nodeEvalCommandStart) => {
 	assertSubprocessErrorName(t, name);
 	t.is(exitCode, undefined);
 	t.is(signalName, undefined);
+	t.false(isCanceled);
 	t.true(command.startsWith(commandStart));
 	t.true(message.startsWith(`Command failed: ${commandStart}`));
 	t.is(stderr, '');

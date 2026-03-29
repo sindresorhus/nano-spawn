@@ -26,6 +26,7 @@ try {
 	expectNotAssignable<Error>(result);
 	expectError(result.exitCode);
 	expectError(result.signalName);
+	expectError(result.isCanceled);
 	expectError(result.other);
 } catch (error) {
 	if (error instanceof SubprocessError) {
@@ -40,6 +41,7 @@ try {
 		expectAssignable<Error>(error);
 		expectType<number | undefined>(error.exitCode);
 		expectType<string | undefined>(error.signalName);
+		expectType<boolean>(error.isCanceled);
 		expectError(error.other);
 	}
 }

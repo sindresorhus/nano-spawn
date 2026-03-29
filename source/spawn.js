@@ -29,7 +29,7 @@ export const spawnSubprocess = async (file, commandArguments, options, context) 
 		await once(instance, 'spawn');
 		return instance;
 	} catch (error) {
-		throw getResultError(error, {}, context);
+		throw getResultError(error, {}, context, options);
 	}
 };
 
