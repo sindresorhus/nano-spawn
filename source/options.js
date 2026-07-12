@@ -2,6 +2,19 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import process from 'node:process';
 
+// Valid string values for stdio entries in node:child_process.
+// Any other string (e.g. a user trying to pass input content directly)
+// triggers a confusing Node.js error. We catch it early with a helpful message.
+const VALID_STDIO_STRINGS = new Set(['pipe', 'inherit', 'ignore', 'overlap']);
+
+const validateStdioEntry = (value, optionName) => {
+	if (typeof value === 'string' && !VALID_STDIO_STRINGS.has(value)) {
+		throw new TypeError(
+			`The \`${optionName}\` option must be one of: ${[...VALID_STDIO_STRINGS].map(string => `'${string}'`).join(', ')}, or an object like \`{string: '...'}\` to pass a string as input. Got: '${value}'.`,
+		);
+	}
+};
+
 export const getOptions = ({
 	stdin,
 	stdout,
@@ -12,6 +25,17 @@ export const getOptions = ({
 	cwd: cwdOption = '.',
 	...options
 }) => {
+	// When stdio is a string (e.g. 'pipe'), it applies to all three streams.
+	// Validate it directly instead of indexing into it (which would give a
+	// single character).
+	if (typeof stdio === 'string') {
+		validateStdioEntry(stdio, 'stdio');
+	} else {
+		validateStdioEntry(stdio[0], 'stdin');
+		validateStdioEntry(stdio[1], 'stdout');
+		validateStdioEntry(stdio[2], 'stderr');
+	}
+
 	const cwd = cwdOption instanceof URL ? fileURLToPath(cwdOption) : path.resolve(cwdOption);
 	const env = envOption ? {...process.env, ...envOption} : undefined;
 	const input = stdio[0]?.string;

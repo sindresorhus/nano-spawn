@@ -227,3 +227,24 @@ test('Can run OS binaries', async t => {
 	const {stdout} = await spawn('git', ['--version']);
 	t.regex(stdout, /^git version \d+\.\d+\.\d+/);
 });
+
+test('options.stdin throws a helpful error when passed a non-stdio string', t => {
+	const error = t.throws(() => spawn('node', ['--version'], {stdin: 'some input'}), {instanceOf: TypeError});
+	t.true(error.message.includes('must be one of'));
+	t.true(error.message.includes('{string:'));
+});
+
+test('options.stdout throws a helpful error when passed a non-stdio string', t => {
+	const error = t.throws(() => spawn('node', ['--version'], {stdout: 'some output'}), {instanceOf: TypeError});
+	t.true(error.message.includes('must be one of'));
+});
+
+test('options.stderr throws a helpful error when passed a non-stdio string', t => {
+	const error = t.throws(() => spawn('node', ['--version'], {stderr: 'some error'}), {instanceOf: TypeError});
+	t.true(error.message.includes('must be one of'));
+});
+
+test('options.stdio array entry throws a helpful error when passed a non-stdio string', t => {
+	const error = t.throws(() => spawn('node', ['--version'], {stdio: ['some input', 'pipe', 'pipe']}), {instanceOf: TypeError});
+	t.true(error.message.includes('must be one of'));
+});
