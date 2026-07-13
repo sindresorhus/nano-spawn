@@ -64,6 +64,13 @@ test('Can pass options.stdin', testStdOption, 'stdin');
 test('Can pass options.stdout', testStdOption, 'stdout');
 test('Can pass options.stderr', testStdOption, 'stderr');
 
+test('Can pass "overlapped" to options.stdin', async t => {
+	const subprocess = spawn(...nodePrintStdout, {stdin: 'overlapped'});
+	const {stdin} = await subprocess.nodeChildProcess;
+	t.not(stdin, null);
+	await subprocess;
+});
+
 const testStdOptionDefault = async (t, optionName) => {
 	const subprocess = spawn(...nodePrintStdout);
 	const nodeChildProcess = await subprocess.nodeChildProcess;
@@ -110,6 +117,9 @@ const testInput = async (t, options, expectedStdout) => {
 	t.is(stdout, expectedStdout);
 };
 
+test('options.stdin can be string', testInput, {stdin: testString}, testString);
+test('options.stdin can be empty string', testInput, {stdin: ''}, '');
+test('options.stdin can be string resembling a stdio mode', testInput, {stdin: 'overlap'}, 'overlap');
 test('options.stdin can be {string: string}', testInput, {stdin: {string: testString}}, testString);
 test('options.stdio[0] can be {string: string}', testInput, {stdio: [{string: testString}, 'pipe', 'pipe']}, testString);
 test('options.stdin can be {string: ""}', testInput, {stdin: {string: ''}}, '');

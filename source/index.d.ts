@@ -1,7 +1,7 @@
 import type {ChildProcess, SpawnOptions} from 'node:child_process';
 
 type StdioOption = Readonly<Exclude<SpawnOptions['stdio'], undefined>[number]>;
-type StdinOption = StdioOption | {readonly string?: string};
+type StdinOption = StdioOption | string | {readonly string?: string};
 
 /**
 Options passed to `nano-spawn`.
@@ -17,7 +17,7 @@ export type Options = Omit<SpawnOptions, 'env' | 'stdio'> & Readonly<Partial<{
 	- `'inherit'`: uses the current process's [input](https://nodejs.org/api/process.html#processstdin). This is useful when running in a terminal.
 	- `'ignore'`: discards the input/output.
 	- [`Stream`](https://nodejs.org/api/stream.html#stream): redirects the input from/to a stream. For example, [`fs.createReadStream()`](https://nodejs.org/api/fs.html#fscreatereadstreampath-options) can be used, once the stream's [`open`](https://nodejs.org/api/fs.html#event-open) event has been emitted.
-	- `{string: '...'}`: passes a string as input.
+	- Any other string: passes the string as input.
 
 	@default 'pipe'
 	*/

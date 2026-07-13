@@ -2,19 +2,26 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import process from 'node:process';
 
+const STDIN_MODES = new Set(['pipe', 'overlapped', 'ignore', 'inherit']);
+
 export const getOptions = ({
 	stdin,
 	stdout,
 	stderr,
-	stdio = [stdin, stdout, stderr],
+	stdio: stdioOption,
 	env: envOption,
 	preferLocal,
 	cwd: cwdOption = '.',
 	...options
 }) => {
+	const stdio = stdioOption === undefined ? [stdin, stdout, stderr] : stdioOption;
 	const cwd = cwdOption instanceof URL ? fileURLToPath(cwdOption) : path.resolve(cwdOption);
 	const env = envOption ? {...process.env, ...envOption} : undefined;
-	const input = stdio[0]?.string;
+	const input = stdioOption === undefined
+		&& typeof stdin === 'string'
+		&& !STDIN_MODES.has(stdin)
+		? stdin
+		: stdio[0]?.string;
 	return {
 		...options,
 		input,

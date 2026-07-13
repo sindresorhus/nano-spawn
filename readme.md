@@ -112,7 +112,8 @@ Subprocess's standard [input](https://en.wikipedia.org/wiki/Standard_streams#Sta
 - `'inherit'`: uses the current process's [input](https://nodejs.org/api/process.html#processstdin)/[output](https://nodejs.org/api/process.html#processstdout). This is useful when running in a terminal.
 - `'ignore'`: discards the input/output.
 - [`Stream`](https://nodejs.org/api/stream.html#stream): redirects the input/output from/to a stream. For example, [`fs.createReadStream()`](https://nodejs.org/api/fs.html#fscreatereadstreampath-options)/[`fs.createWriteStream()`](https://nodejs.org/api/fs.html#fscreatewritestreampath-options) can be used, once the stream's [`open`](https://nodejs.org/api/fs.html#event-open) event has been emitted.
-- `{string: '...'}`: passes a string as input to `stdin`.
+- Any other string passed to `stdin`: passes the string as input.
+- `{string: '...'}`: also passes a string as input to `stdin`.
 
 #### Subprocess
 
