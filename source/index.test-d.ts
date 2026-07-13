@@ -62,6 +62,8 @@ expectError(await spawn('test', {env: true} as const));
 // eslint-disable-next-line @typescript-eslint/naming-convention
 expectError(await spawn('test', {env: {TEST: true}} as const));
 await spawn('test', {stdin: 'pipe'} as const);
+await spawn('test', {stdin: 'input'} as const);
+await spawn('test', {stdin: ''} as const);
 await spawn('test', {stdin: {string: 'test'} as const} as const);
 expectError(await spawn('test', {stdin: {string: true} as const} as const));
 expectError(await spawn('test', {stdin: {other: 'test'} as const} as const));

@@ -64,6 +64,13 @@ test('Can pass options.stdin', testStdOption, 'stdin');
 test('Can pass options.stdout', testStdOption, 'stdout');
 test('Can pass options.stderr', testStdOption, 'stderr');
 
+test('Can pass "overlapped" to options.stdin', async t => {
+	const subprocess = spawn(...nodePrintStdout, {stdin: 'overlapped'});
+	const {stdin} = await subprocess.nodeChildProcess;
+	t.not(stdin, null);
+	await subprocess;
+});
+
 const testStdOptionDefault = async (t, optionName) => {
 	const subprocess = spawn(...nodePrintStdout);
 	const nodeChildProcess = await subprocess.nodeChildProcess;
@@ -110,6 +117,9 @@ const testInput = async (t, options, expectedStdout) => {
 	t.is(stdout, expectedStdout);
 };
 
+test('options.stdin can be string', testInput, {stdin: testString}, testString);
+test('options.stdin can be empty string', testInput, {stdin: ''}, '');
+test('options.stdin can be string resembling a stdio mode', testInput, {stdin: 'overlap'}, 'overlap');
 test('options.stdin can be {string: string}', testInput, {stdin: {string: testString}}, testString);
 test('options.stdio[0] can be {string: string}', testInput, {stdio: [{string: testString}, 'pipe', 'pipe']}, testString);
 test('options.stdin can be {string: ""}', testInput, {stdin: {string: ''}}, '');
@@ -226,25 +236,4 @@ test('Can run global npm binaries', async t => {
 test('Can run OS binaries', async t => {
 	const {stdout} = await spawn('git', ['--version']);
 	t.regex(stdout, /^git version \d+\.\d+\.\d+/);
-});
-
-test('options.stdin throws a helpful error when passed a non-stdio string', t => {
-	const error = t.throws(() => spawn('node', ['--version'], {stdin: 'some input'}), {instanceOf: TypeError});
-	t.true(error.message.includes('must be one of'));
-	t.true(error.message.includes('{string:'));
-});
-
-test('options.stdout throws a helpful error when passed a non-stdio string', t => {
-	const error = t.throws(() => spawn('node', ['--version'], {stdout: 'some output'}), {instanceOf: TypeError});
-	t.true(error.message.includes('must be one of'));
-});
-
-test('options.stderr throws a helpful error when passed a non-stdio string', t => {
-	const error = t.throws(() => spawn('node', ['--version'], {stderr: 'some error'}), {instanceOf: TypeError});
-	t.true(error.message.includes('must be one of'));
-});
-
-test('options.stdio array entry throws a helpful error when passed a non-stdio string', t => {
-	const error = t.throws(() => spawn('node', ['--version'], {stdio: ['some input', 'pipe', 'pipe']}), {instanceOf: TypeError});
-	t.true(error.message.includes('must be one of'));
 });
