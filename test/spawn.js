@@ -1,10 +1,13 @@
+import path from 'node:path';
 import process from 'node:process';
+import {fileURLToPath} from 'node:url';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import getNode from 'get-node';
 import spawn from '../source/index.js';
 import {isWindows, FIXTURES_URL, writeMultibyte} from './helpers/main.js';
 import {
+	assertFail,
 	assertNonExistent,
 	assertUnixNonExistentShell,
 	assertWindowsNonExistent,
@@ -29,10 +32,36 @@ if (isWindows) {
 	test('Keeps Node flags, case-insensitive', testNodeFlags('NODE', 'node-flags.js', true));
 }
 
+// Outside of Windows, `node.exe` is an ordinary file, so it must be run rather than replaced. The
+// `node.exe` fixture is a script exiting with `2`, which the replacement would not have done.
+// It is in its own directory, since a `node.exe` in a shared fixture directory would shadow the real one for npm `.cmd` shims on Windows.
+if (!isWindows) {
+	test('node.exe is not treated as node', async () => {
+		const PATH = `${fileURLToPath(new URL('node-exe', FIXTURES_URL))}${path.delimiter}${process.env.PATH}`;
+		const error = await throwsAsync(spawn('node.exe', ['--version'], {env: {PATH}}));
+		assertFail(error, 'node.exe');
+	});
+}
+
 test('Does not keep --inspect* Node flags', async () => {
 	const {stdout} = await spawn('node', [nodeCliFlag, inspectCliFlag, 'node-flags.js'], {cwd: FIXTURES_URL});
 	assert.ok(stdout.includes(nodeCliFlag));
 	assert.equal(stdout.includes(inspectCliFlag), false);
+});
+
+test('Does not keep the value of a space-separated --inspect flag', async () => {
+	// Node accepts the value as a separate argument, and the filter dropped the flag token only, so the
+	// value stayed in the arguments and the child read it as the path of a script to run.
+	// `node-flags.js` spawns a grandchild that prints its own `execArgv`, so the port is in the output.
+	const {stdout} = await spawn('node', [nodeCliFlag, '--inspect-port', '8091', 'node-flags.js'], {cwd: FIXTURES_URL});
+	assert.ok(stdout.includes(nodeCliFlag));
+	assert.equal(stdout.includes('8091'), false);
+});
+
+test('Does not keep the value of a space-separated --inspect-publish-uid flag', async () => {
+	const {stdout} = await spawn('node', [nodeCliFlag, '--inspect-publish-uid', 'stderr', 'node-flags.js'], {cwd: FIXTURES_URL});
+	assert.ok(stdout.includes(nodeCliFlag));
+	assert.equal(stdout.includes('inspect-publish-uid'), false);
 });
 
 const TEST_NODE_VERSION = '20.17.0';

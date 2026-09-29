@@ -4,15 +4,41 @@ import process from 'node:process';
 import {applyForceShell} from './windows.js';
 import {getResultError} from './result.js';
 
+// Node accepts `--inspect-port 9229` with the value as a separate argument, and dropping only the flag
+// left the value in the arguments, where the child read it as the path of a script to run. Only these
+// two take a separate value; `--inspect` and `--inspect-brk` do not, `--inspect-port=8091` is one
+// token to begin with, and `http` is a value of `--inspect-publish-uid` rather than a flag of its own.
+const inspectFlagsWithValue = new Set(['--inspect-port', '--inspect-publish-uid']);
+
+const withoutInspectFlags = arguments_ => {
+	const result = [];
+
+	for (let index = 0; index < arguments_.length; index++) {
+		const argument = arguments_[index];
+
+		if (inspectFlagsWithValue.has(argument)) {
+			index++;
+		} else if (!argument.startsWith('--inspect')) {
+			result.push(argument);
+		}
+	}
+
+	return result;
+};
+
+// `node.exe` is only the name of the `node` binary on Windows. Elsewhere it is an ordinary file,
+// which must not be replaced, since `result.command` would then report a command that never ran.
+const NODE_BINARIES = process.platform === 'win32' ? ['node', 'node.exe'] : ['node'];
+
 export const spawnSubprocess = async (file, commandArguments, options, context) => {
 	try {
 		// When running `node`, keep the current Node version and CLI flags.
 		// Not applied with file paths to `.../node` since those indicate a clear intent to use a specific Node version.
 		// This also provides a way to opting out, e.g. using `process.execPath` instead of `node` to discard current CLI flags.
 		// Does not work with shebangs, but those don't work cross-platform anyway.
-		if (['node', 'node.exe'].includes(file.toLowerCase())) {
+		if (NODE_BINARIES.includes(file.toLowerCase())) {
 			file = process.execPath;
-			commandArguments = [...process.execArgv.filter(flag => !flag.startsWith('--inspect')), ...commandArguments];
+			commandArguments = [...withoutInspectFlags(process.execArgv), ...commandArguments];
 		}
 
 		[file, commandArguments, options] = await applyForceShell(file, commandArguments, options);
