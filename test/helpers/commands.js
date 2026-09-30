@@ -1,4 +1,8 @@
 import logProcessErrors from 'log-process-errors';
+// Windows console setup. It is imported here rather than with `node --import` because
+// nano-spawn hands the parent's `process.execArgv` to every child process, and a relative
+// `--import` path in those flags breaks any child spawned with a different `cwd`.
+import './setup.js';
 import {testString, secondTestString} from './arguments.js';
 
 // Make tests fail if any warning (such as a deprecation warning) is emitted
@@ -62,6 +66,9 @@ export const nodeDoubleFail = nodeEval(`process.stdin.on("data", chunk => {
 	process.exit(2);
 });`);
 export const localBinary = ['ava', ['--version']];
+export const localOnlyBinary = ['nano-spawn-local-only', ['--version']];
+export const localOnlyBinaryCommand = localOnlyBinary.flat().join(' ');
+export const [localOnlyBinaryCommandStart] = localOnlyBinary;
 export const localBinaryCommand = localBinary.flat().join(' ');
 export const [localBinaryCommandStart] = localBinary;
 export const nonExistentCommand = 'non-existent-command';

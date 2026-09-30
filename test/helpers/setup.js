@@ -16,11 +16,8 @@ const updateCodePage = codePage => {
 // This is necessary to correctly parse non-English cmd.exe error output.
 // https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/chcp
 // and https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers
-export default function setup() {
-	if (process.platform !== 'win32') {
-		return;
-	}
-
+// Imported for its side effect by ./commands.js, which every test file imports.
+if (process.platform === 'win32') {
 	const originalCodePage = getCodePage();
 	if (originalCodePage !== '65001') {
 		updateCodePage('65001');
