@@ -4,7 +4,7 @@ import {once} from 'node:events';
 import {temporaryWriteTask} from 'tempy';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import spawn from '../source/index.js';
+import spawn, {SubprocessError} from '../source/index.js';
 import {
 	isWindows,
 	FIXTURES_URL,
@@ -24,6 +24,7 @@ import {
 	assertErrorEvent,
 	assertFail,
 	assertSigterm,
+	assertSubprocessErrorName,
 	throwsAsync
 } from './helpers/assert.js';
 import {
@@ -39,6 +40,7 @@ import {
 	nodePrintSleep,
 	nodePrintSleepFail,
 	nodeHanging,
+	nonExistentCommand,
 } from './helpers/commands.js';
 
 const testFixtureUrl = new URL('test.txt', FIXTURES_URL);
@@ -263,7 +265,7 @@ test('.pipe() with stdin stream in destination', async () => {
 	await once(stream, 'open');
 	await throwsAsync(
 		spawn(...nodePassThrough).pipe(...nodeToUpperCase, {stdin: stream}),
-		{message: 'The "stdin" option must be set on the first "spawn()" call in the pipeline.'});
+		{message: /^The "stdin" option must be "pipe" on the destination of "\.pipe\(\)"\.$/});
 });
 
 test('.pipe() with stdout stream in destination', async () => {
@@ -282,9 +284,77 @@ test('.pipe() with stdout stream in source', async () => {
 		await once(stream, 'open');
 		await throwsAsync(
 			spawn(...nodePrintStdout, {stdout: stream}).pipe(...nodePassThrough),
-			{message: 'The "stdout" option must be set on the last "spawn()" call in the pipeline.'},
+			{message: /^The "stdout" option must be "pipe" on the source of "\.pipe\(\)"\.$/},
 		);
 	});
+});
+
+// Invalid `stdin`/`stdout` options are `spawn()` misuse, so they must reject with the same
+// `SubprocessError` shape as any other subprocess failure, not with a bare `Error`.
+const testPipeSetupError = (message, spawnPiped) => async () => {
+	const error = await throwsAsync(spawnPiped());
+	assert.ok(error instanceof SubprocessError);
+	assertSubprocessErrorName(error.name);
+	assert.ok(error.command.startsWith('node -e '));
+	assert.equal(error.message, message);
+	assert.equal(error.exitCode, undefined);
+	assert.equal(error.signalName, undefined);
+	assert.equal(error.isCanceled, false);
+	assert.equal(error.stdout, '');
+	assert.equal(error.stderr, '');
+	assert.equal(error.output, '');
+	assertDurationMs(error.durationMs);
+};
+
+test('.pipe() rejects with a SubprocessError if the destination "stdin" is not a pipe', testPipeSetupError(
+	'The "stdin" option must be "pipe" on the destination of ".pipe()".',
+	() => spawn(...nodePrintStdout).pipe(...nodeToUpperCase, {stdin: 'ignore'}),
+));
+
+test('.pipe() rejects with a SubprocessError if the source "stdout" is not a pipe', testPipeSetupError(
+	'The "stdout" option must be "pipe" on the source of ".pipe()".',
+	() => spawn(...nodePrintStdout, {stdout: 'ignore'}).pipe(...nodeToUpperCase),
+));
+
+// The message names which subprocess is at fault, so it must not contradict itself. `error.command` is always the destination, even for the `stdout` option, which belongs to the source.
+test('.pipe() "stdout" setup error uses the destination command', async () => {
+	const error = await throwsAsync(spawn(...nodePrintStdout, {stdout: 'ignore'}).pipe(...nodeToUpperCase));
+	assert.ok(error.command.includes('toUpperCase'));
+	assert.equal(error.pipedFrom, undefined);
+});
+
+test('.pipe() setup error takes priority over a failing source', async () => {
+	const error = await throwsAsync(spawn(...nodePrintFail, {stdout: 'ignore'}).pipe(...nodeToUpperCase));
+	assert.equal(error.message, 'The "stdout" option must be "pipe" on the source of ".pipe()".');
+});
+
+// Nothing is piped when the setup fails, so the error must not wait for a source which may never exit
+const testPipeSetupNoWait = destinationArguments => async () => {
+	const first = spawn(...nodeEval('setInterval(() => {}, 1e3)'));
+	await throwsAsync(first.pipe(...destinationArguments));
+	const nodeChildProcess = await first.nodeChildProcess;
+	nodeChildProcess.kill();
+	const {signalName} = await throwsAsync(first);
+	assert.equal(signalName, 'SIGTERM');
+};
+
+test('.pipe() setup error does not wait for the source to exit', testPipeSetupNoWait([...nodeToUpperCase, {stdin: 'ignore'}]));
+test('.pipe() destination spawn error does not wait for the source to exit', testPipeSetupNoWait([nonExistentCommand]));
+
+// A subprocess which failed to spawn is already a `SubprocessError`: it must be rethrown as is,
+// without being wrapped nor referencing itself through `error.pipedFrom`.
+test('.pipe() does not wrap a source which failed to spawn', async () => {
+	const first = spawn(nonExistentCommand);
+	const error = await throwsAsync(first.pipe(...nodeToUpperCase));
+	assert.equal(error, await throwsAsync(first));
+	assert.equal(error.pipedFrom, undefined);
+});
+
+test('.pipe() does not wrap a destination which failed to spawn', async () => {
+	const first = spawn(...nodePrintStdout);
+	const error = await throwsAsync(first.pipe(nonExistentCommand));
+	assert.equal(error.command, nonExistentCommand);
+	assert.equal(error.pipedFrom, undefined);
 });
 
 test('.pipe() + stdout/stderr iteration', async () => {
@@ -372,3 +442,38 @@ test('.pipe() one source to multiple destinations', async () => {
 	assert.equal(thirdResult.stdout, testDouble);
 	assert.equal(thirdResult.output, thirdResult.stdout);
 });
+
+// Piping one source to many destinations adds one `pipeline()` listener per destination to the
+// source's `stdout`, which Node warns about past 10 listeners. The project's own test setup turns
+// any warning into a failure, and users would get the same noise.
+test('.pipe() one source to many destinations', async () => {
+	const destinationCount = 12;
+	const first = spawn(...nodePrintStdout);
+	const results = await Promise.all(Array.from({length: destinationCount}, () => first.pipe(...nodeToUpperCase)));
+	assert.deepEqual(
+		results.map(({stdout}) => stdout),
+		Array.from({length: destinationCount}, () => testUpperCase),
+	);
+	assert.equal((await first).stdout, testString);
+});
+
+// The destination stopping to read ends the source with `SIGPIPE`. The pipeline itself caused that,
+// so the pipeline takes the destination's outcome, as a shell does, and the source's error is still
+// reachable through `pipedFrom`.
+if (!isWindows) {
+	test('.pipe() source killed by SIGPIPE is not a pipeline failure', async () => {
+		// Large enough that `cat` cannot write it all before `head` exits, so it is ended by SIGPIPE
+		await temporaryWriteTask(`${testString}\n`.repeat(100_000), async temporaryPath => {
+			const {stdout, pipedFrom} = await spawn('cat', [temporaryPath]).pipe('head', ['-n', '2']);
+			assert.equal(stdout, `${testString}\n${testString}`);
+			assertSubprocessErrorName(pipedFrom.name);
+			assert.equal(pipedFrom.signalName, 'SIGPIPE');
+		});
+	});
+
+	test('.pipe() source failing for another reason is still a pipeline failure', async () => {
+		const error = await throwsAsync(spawn('node', ['-e', 'process.exit(2)']).pipe('cat'));
+		assertFail(error);
+		assert.equal(error.pipedFrom, undefined);
+	});
+}

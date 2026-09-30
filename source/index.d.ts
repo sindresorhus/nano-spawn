@@ -196,7 +196,7 @@ export type Subprocess = Promise<Result> & AsyncIterable<string> & {
 	/**
 	Similar to the `|` symbol in shells. [Pipe](https://nodejs.org/api/stream.html#readablepipedestination-options) the subprocess's[`stdout`](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)) to a second subprocess's [`stdin`](https://en.wikipedia.org/wiki/Standard_streams#Standard_input_(stdin)).
 
-	This resolves with that second subprocess's result. If either subprocess is rejected, this is rejected with that subprocess's error instead.
+	This resolves with that second subprocess's result. If either subprocess is rejected, this is rejected with that subprocess's error instead. The only exception is a source terminated by `SIGPIPE`, which the destination stopping to read causes, so the pipeline takes the destination's outcome, like a shell does.
 
 	This follows the same syntax as `spawn(file, arguments?, options?)`. It can be done multiple times in a row.
 
