@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import spawn from '../source/index.js';
+import {arrayFromAsync, isWindows} from './helpers/main.js';
 import {
 	assertSigterm,
 	throwsAsync
@@ -42,3 +43,12 @@ test('Can run many times at once', async () => {
 	const results = await Promise.all(inputs.map(input => spawn(...nodePrint(input))));
 	assert.deepEqual(results.map(({output}) => output), inputs);
 });
+
+// The readme and the `spawn()` doc comment both show `spawn('ls')` being iterated
+if (!isWindows) {
+	test('readme example: for await (const line of spawn(\'ls\'))', async () => {
+		const lines = await arrayFromAsync(spawn('ls'));
+		assert.ok(lines.includes('source'));
+		assert.ok(lines.includes('test'));
+	});
+}

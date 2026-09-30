@@ -25,6 +25,7 @@ import {
 	nodePrintStderr,
 	nodePrintBoth,
 	nodeHanging,
+	nodeHangingCommand,
 	nodeEval,
 	nodePrintNoNewline,
 	nonExistentCommand,
@@ -154,6 +155,34 @@ const testStreamError = (streamName) => async () => {
 test('Handles subprocess.stdin error', testStreamError('stdin'));
 test('Handles subprocess.stdout error', testStreamError('stdout'));
 test('Handles subprocess.stderr error', testStreamError('stderr'));
+
+// A stdio stream error is a subprocess failure in itself. It must be reported right away, even when
+// the subprocess would otherwise keep running forever. Otherwise the error is silently swallowed.
+const testStreamErrorWhileRunning = (streamName) => async () => {
+	const subprocess = spawn(...nodeHanging);
+	const nodeChildProcess = await subprocess.nodeChildProcess;
+	const cause = new Error(testString);
+	nodeChildProcess[streamName].destroy(cause);
+
+	try {
+		const error = await throwsAsync(Promise.race([
+			subprocess,
+			// Fail fast instead of hanging until the test runner times out
+			new Promise((resolve, reject) => {
+				setTimeout(() => {
+					reject(new Error(`The subprocess did not reject on its ${streamName} error`));
+				}, 1e4).unref();
+			}),
+		]));
+		assertErrorEvent(error, cause, nodeHangingCommand);
+	} finally {
+		nodeChildProcess.kill();
+	}
+};
+
+test('Handles subprocess.stdin error while the subprocess is still running', testStreamErrorWhileRunning('stdin'));
+test('Handles subprocess.stdout error while the subprocess is still running', testStreamErrorWhileRunning('stdout'));
+test('Handles subprocess.stderr error while the subprocess is still running', testStreamErrorWhileRunning('stderr'));
 
 const testNewline = (input, expectedOutput) => async () => {
 	const {stdout, output} = await spawn(...nodePrintNoNewline(input));

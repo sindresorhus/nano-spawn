@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {setTimeout} from 'node:timers/promises';
 import assert from 'node:assert/strict';
 import spawn from '../source/index.js';
 import {arrayFromAsync, destroySubprocessStream, writeMultibyte} from './helpers/main.js';
@@ -13,6 +14,7 @@ import {
 	assertAbortError,
 	assertErrorEvent,
 	assertFail,
+	assertSigterm,
 	throwsAsync
 } from './helpers/assert.js';
 import {
@@ -26,6 +28,7 @@ import {
 	nodePassThroughPrint,
 	nodePassThroughPrintFail,
 	nodeHanging,
+	nodeHangingCommand,
 } from './helpers/commands.js';
 
 const getIterable = (subprocess, iterableType) => iterableType === ''
@@ -128,6 +131,29 @@ test('subprocess[Symbol.asyncIterator] has iterations if only options.stderr "ig
 	assert.equal(output, '');
 });
 
+// A stream which cannot be iterated must not make a subprocess failure disappear: the "not
+// iterable" error is only ignored when the subprocess itself did not fail.
+const testIterationNotIterableFailure = (options, fixture, assertError = assertFail) => async () => {
+	const subprocess = spawn(...fixture, options);
+	const error = await throwsAsync(arrayFromAsync(subprocess));
+	assertError(error);
+	assert.equal(error, await throwsAsync(subprocess));
+};
+
+test('subprocess[Symbol.asyncIterator] throws if only options.stderr is not "pipe" and the subprocess fails', testIterationNotIterableFailure({stderr: 'ignore'}, nodePrintBothFail));
+test('subprocess[Symbol.asyncIterator] throws if only options.stdout is not "pipe" and the subprocess fails', testIterationNotIterableFailure({stdout: 'ignore'}, nodePrintBothFail));
+test('subprocess[Symbol.asyncIterator] throws if both options.stdout + options.stderr are not "pipe" and the subprocess fails', testIterationNotIterableFailure({stdout: 'ignore', stderr: 'ignore'}, nodePrintBothFail));
+test('subprocess[Symbol.asyncIterator] throws if only options.stderr is "inherit" and the subprocess fails', testIterationNotIterableFailure({stderr: 'inherit'}, nodePrintBothFail));
+test('subprocess[Symbol.asyncIterator] throws if only options.stderr is not "pipe" and the subprocess is signaled', testIterationNotIterableFailure({stderr: 'ignore', timeout: 1e3}, nodeHanging, assertSigterm));
+
+test('subprocess[Symbol.asyncIterator] throws if only options.stderr is not "pipe" and the subprocess is canceled', async () => {
+	const signal = AbortSignal.timeout(500);
+	const subprocess = spawn(...nodeHanging, {stderr: 'ignore', signal});
+	const error = await throwsAsync(arrayFromAsync(subprocess));
+	assertAbortError(error, signal.reason);
+	assert.equal(error, await throwsAsync(subprocess));
+});
+
 test('subprocess[Symbol.asyncIterator] throws if only options.stdout + options.stderr "ignore"', async () => {
 	const subprocess = spawn(...nodePrintBoth, {stdout: 'ignore', stderr: 'ignore'});
 	const error = await throwsAsync(arrayFromAsync(subprocess));
@@ -158,6 +184,21 @@ const testIterationLate = (iterableType) => async () => {
 test('subprocess.stdout must be called right away', testIterationLate('stdout'));
 test('subprocess.stderr must be called right away', testIterationLate('stderr'));
 test('subprocess[Symbol.asyncIterator] must be called right away', testIterationLate(''));
+
+// Refusing the iteration means the `subprocess` promise is never awaited. When it rejects, that
+// must not surface as an unhandled rejection, which crashes the process by default.
+const testIterationLateFailure = (iterableType) => async () => {
+	const subprocess = spawn(...nodePrintBothFail);
+	await subprocess.nodeChildProcess;
+	await throwsAsync(arrayFromAsync(getIterable(subprocess, iterableType)), {message: /must be iterated right away/});
+	// Give the rejection enough time to be reported if it is unhandled
+	await setTimeout(1e2);
+	await throwsAsync(subprocess);
+};
+
+test('subprocess.stdout must be called right away, without an unhandled rejection', testIterationLateFailure('stdout'));
+test('subprocess.stderr must be called right away, without an unhandled rejection', testIterationLateFailure('stderr'));
+test('subprocess[Symbol.asyncIterator] must be called right away, without an unhandled rejection', testIterationLateFailure(''));
 
 test('subprocess[Symbol.asyncIterator] is line-wise', async () => {
 	const subprocess = spawn('node', ['--input-type=module', '-e', `
@@ -228,6 +269,62 @@ const testStreamIterateAllError = (streamName) => async () => {
 
 test('Handles subprocess.stdout error in subprocess[Symbol.asyncIterator]', testStreamIterateAllError('stdout'));
 test('Handles subprocess.stderr error in subprocess[Symbol.asyncIterator]', testStreamIterateAllError('stderr'));
+
+// A generator suspended on a pending line cannot be resumed, so aborting the iteration while the
+// other stream is silent used to deadlock instead of throwing.
+const testStreamIterateAllErrorWhileRunning = (streamName) => async () => {
+	const subprocess = spawn(...nodeHanging);
+	const iterated = arrayFromAsync(subprocess);
+	const nodeChildProcess = await subprocess.nodeChildProcess;
+	const cause = new Error(testString);
+	nodeChildProcess[streamName].destroy(cause);
+
+	try {
+		const error = await throwsAsync(Promise.race([
+			iterated,
+			// Fail fast instead of hanging until the test runner times out
+			new Promise((resolve, reject) => {
+				globalThis.setTimeout(() => {
+					reject(new Error(`The subprocess did not throw on its ${streamName} error`));
+				}, 1e4).unref();
+			}),
+		]));
+		assertErrorEvent(error, cause, nodeHangingCommand);
+	} finally {
+		nodeChildProcess.kill();
+	}
+};
+
+test('Handles subprocess.stdout error in subprocess[Symbol.asyncIterator] while still running', testStreamIterateAllErrorWhileRunning('stdout'));
+test('Handles subprocess.stderr error in subprocess[Symbol.asyncIterator] while still running', testStreamIterateAllErrorWhileRunning('stderr'));
+
+// A stream error on one stream leaves the other one open when the subprocess keeps running, so
+// nothing ends the iteration: it waited forever for a line which could never come.
+const testStreamErrorOnOtherStream = (streamName, otherStreamName) => async () => {
+	const subprocess = spawn(...nodeHanging);
+	const iterated = arrayFromAsync(subprocess[streamName]);
+	const nodeChildProcess = await subprocess.nodeChildProcess;
+	const cause = new Error(testString);
+	nodeChildProcess[otherStreamName].destroy(cause);
+
+	try {
+		const error = await throwsAsync(Promise.race([
+			iterated,
+			// Fail fast instead of hanging until the test runner times out
+			new Promise((resolve, reject) => {
+				globalThis.setTimeout(() => {
+					reject(new Error(`The subprocess did not throw on its ${otherStreamName} error`));
+				}, 1e4).unref();
+			}),
+		]));
+		assertErrorEvent(error, cause, nodeHangingCommand);
+	} finally {
+		nodeChildProcess.kill();
+	}
+};
+
+test('Handles subprocess.stderr error while iterating subprocess.stdout', testStreamErrorOnOtherStream('stdout', 'stderr'));
+test('Handles subprocess.stdout error while iterating subprocess.stderr', testStreamErrorOnOtherStream('stderr', 'stdout'));
 
 const testStreamIterateSignal = (streamName) => async () => {
 	const signal = AbortSignal.timeout(0);
@@ -317,6 +414,24 @@ test('subprocess.stdout iteration exception waits for the subprocess failure', t
 test('subprocess[Symbol.asyncIterator] iteration exception waits for the subprocess failure', testIterationFail(true, ''));
 
 // eslint-disable-next-line max-params
+// When one stream ends with the subprocess failure, the lines the other stream already read must still be yielded before the error is thrown
+test('subprocess[Symbol.asyncIterator] yields every line before a failure, even when consumed slowly', async () => {
+	const subprocess = spawn(...nodeEval('for (let index = 0; index < 1000; index++) { console.log(index); } process.exitCode = 2;'));
+	const lines = [];
+	const error = await throwsAsync((async () => {
+		for await (const line of subprocess) {
+			if (lines.length === 0) {
+				await setTimeout(1e2);
+			}
+
+			lines.push(line);
+		}
+	})());
+	assert.equal(error.exitCode, 2);
+	assert.equal(lines.length, 1000);
+	assert.equal(lines.at(-1), '999');
+});
+
 const testPartialIteration = (streamName, otherStreamName, expectedLines, expectedOutput) => async () => {
 	const subprocess = spawn(...nodePrintBoth);
 	const lines = await arrayFromAsync(subprocess[streamName]);

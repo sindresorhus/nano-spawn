@@ -243,11 +243,12 @@ console.log(result.output);
 @example <caption>Iterate over output lines</caption>
 
 ```
-for await (const line of spawn('ls', ['--oneline'])) {
+for await (const line of spawn('ls')) {
 	console.log(line);
 }
-//=> index.d.ts
-//=> index.js
+//=> node_modules
+//=> source
+//=> test
 //=> …
 ```
 */

@@ -50,11 +50,12 @@ console.log(result.output);
 ### Iterate over output lines
 
 ```js
-for await (const line of spawn('ls', ['--oneline'])) {
+for await (const line of spawn('ls')) {
 	console.log(line);
 }
-//=> index.d.ts
-//=> index.js
+//=> node_modules
+//=> source
+//=> test
 //=> …
 ```
 

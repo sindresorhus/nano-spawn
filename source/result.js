@@ -17,7 +17,9 @@ export const getResult = async (nodeChildProcess, options, context) => {
 		checkFailure(context, getErrorOutput(instance));
 		return getOutputs(context);
 	} catch (error) {
-		await Promise.allSettled([onClose]);
+		// A stdio stream error is a failure in itself, so it is reported right away instead of waiting
+		// for the `close` event. Otherwise a broken stream on a long-running subprocess would swallow
+		// the error forever. The subprocess can still be terminated using `nodeChildProcess`.
 		throw getResultError(error, instance, context, options);
 	}
 };
