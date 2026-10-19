@@ -164,6 +164,30 @@ if (isWindows) {
 	test('Escapes argument when setting shell option, "foo|bar>baz"', testEscape('"foo|bar>baz"'));
 	test('Escapes argument when setting shell option, "(foo|bar>baz|foz)"', testEscape('"(foo|bar>baz|foz)"'));
 
+	// Unlike `spawnecho.cmd`, which forwards its arguments with `%*`, some batch files read them with `%1` or `%~1`, like Maven's `mvn.cmd`.
+	// `read-arguments.cmd` prints its first argument, then its second one when the first one is `-f`. `ECHO` ends lines with CRLF.
+	const testReadArguments = (commandArguments, expectedLines) => async () => {
+		const {stdout} = await spawn('read-arguments', commandArguments, {cwd: FIXTURES_URL});
+		assert.deepEqual(stdout.split('\r\n'), expectedLines);
+	};
+
+	test('Passes arguments to batch files reading them with %~1', testReadArguments(['-f', 'C:\\repo\\pom.xml'], ['first is -f', 'file is "C:\\repo\\pom.xml"']));
+	test('Passes metacharacters to batch files reading them with %~1', testReadArguments(['-f', 'C:\\my repo\\a&b|c%PATH%.xml'], ['first is -f', 'file is "C:\\my repo\\a&b|c%PATH%.xml"']));
+	// Only arguments that need quoting are quoted, so `%1` is the same as when typed in a terminal: `-f` stays unquoted, and `a b` includes its quotes
+	test('Only quotes arguments that need it for batch files reading them with %1', testReadArguments(['a b'], ['first is "a b"']));
+
+	// Like the launchers Gradle generates for Java programs, such as Android's `sdkmanager.bat`, `spawnlauncher.cmd` reads its first argument, then forwards them all with `%*`
+	const testLauncher = input => async () => {
+		const {stdout} = await spawn('spawnlauncher', [input], {cwd: FIXTURES_URL});
+		assert.equal(stdout, input);
+	};
+
+	test('Passes argument to a batch file that reads and forwards it, plain', testLauncher('list'));
+	test('Passes argument to a batch file that reads and forwards it, =', testLauncher('--sdk_root=C:\\sdk'));
+	test('Passes argument to a batch file that reads and forwards it, space', testLauncher('a b'));
+	test('Passes argument to a batch file that reads and forwards it, trailing \\', testLauncher('C:\\Program Files\\'));
+	test('Passes argument to a batch file that reads and forwards it, &', testLauncher('a&b'));
+
 	test('Cannot run shebangs', async () => {
 		const error = await throwsAsync(spawn('./shebang.js', {cwd: FIXTURES_URL}));
 		assertWindowsNonExistent(error, './shebang.js');

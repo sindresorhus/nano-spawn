@@ -62,10 +62,28 @@ const mIsExe = memoize(async (file, cwd, PATH) => {
 const exeExtensions = ['.exe', '.com'];
 
 // `cmd.exe` escaping for arguments.
-// Taken from https://github.com/moxystudio/node-cross-spawn
-const escapeArgument = argument => escapeFile(escapeFile(`"${argument
-	.replaceAll(/(\\*)"/g, '$1$1\\"')
-	.replace(/(\\*)$/, '$1$1')}"`));
+// This is the same as Rust's `std::process::Command` for batch files, which fixed the "BatBadBut" vulnerability (CVE-2024-24576): https://github.com/rust-lang/rust/blob/main/library/std/src/sys/args/windows.rs (`append_bat_arg()`). Execa does the same.
+// Arguments are quoted instead of caret-escaped. `cmd.exe` interprets an argument once when a batch file reads it with `%~1`, like Maven's `mvn.cmd`, but twice when a batch file forwards it with `%*`, like Node modules binaries. Caret escaping depends on that count, but quoting does not.
+// The backslashes preceding a double quote, and those at the end of the argument, are doubled. Each run of backslashes is matched once, so this takes linear time. A `(\\*)"` replacement would backtrack and take quadratic time on long runs of backslashes, blocking the event loop.
+// Then, `"` becomes `""`, which keeps the quotes balanced for `cmd.exe`, and `%` becomes `%%cd:~,%`, which is a literal `%` followed by an empty substring of `%cd%`. This prevents `%VAR%` from being expanded.
+const escapeArgument = argument => {
+	if (!shouldQuoteArgument(argument)) {
+		return argument;
+	}
 
-// `cmd.exe` escaping for file and arguments.
+	const escapedArgument = argument
+		.replaceAll(/\\+/gv, (backslashes, offset) => ['"', undefined].includes(argument[offset + backslashes.length]) ? backslashes.repeat(2) : backslashes)
+		.replaceAll('"', '""')
+		.replaceAll('%', '%%cd:~,%');
+	return `"${escapedArgument}"`;
+};
+
+// An empty argument must be quoted, otherwise it would be dropped.
+// An argument ending with a backslash must be quoted, otherwise a batch file wrapping it in double quotes, like `"%~1"`, would have that backslash escape its closing double quote.
+// Otherwise, only arguments with characters that `cmd.exe` might interpret are quoted, so a batch file reading `%1` gets what the user passed, like when run from a terminal. Those are any characters except ASCII letters, digits, a few punctuation characters, and non-ASCII characters other than control characters.
+const shouldQuoteArgument = argument => argument === ''
+	|| argument.endsWith('\\')
+	|| /[\p{Control}[^\w#$*+\-.\/:?@\\\u{80}-\u{10FFFF}]]/v.test(argument);
+
+// `cmd.exe` escaping for the file.
 const escapeFile = file => file.replaceAll(/([()\][%!^"`<>&|;, *?])/g, '^$1');

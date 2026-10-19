@@ -262,6 +262,16 @@ This package fixes several cross-platform issues with [`node:child_process`](htt
 - The [`PATHEXT`](https://wiki.tcl-lang.org/page/PATHEXT) environment variable.
 - Windows-specific [newlines](https://en.wikipedia.org/wiki/Newline#Representation).
 
+When the `shell` option is not set, `.cmd`, `.bat`, and other files except `.exe` and `.com` are run through `cmd.exe`, so their arguments are escaped. This uses the same escaping as [Rust](https://github.com/rust-lang/rust/blob/main/library/std/src/sys/args/windows.rs), which works whether the batch file reads its arguments (`%1`, `"%~1"`) or forwards them (`%*`), like Node modules binaries do.
+
+> [!WARNING]
+> Batch files can still misuse their arguments, which no escaping can prevent:
+> - `%~1` receives the escaped argument: each `"` is doubled, and so are the backslashes before a `"` or at the end.
+> - Using `%~1` outside double quotes, or `%1` inside double quotes (like `if "%1" == ""`), lets `cmd.exe` interpret the argument's special characters, which allows command injection.
+> - Forwarding arguments with `call`, or enabling delayed expansion, makes `cmd.exe` expand `%` or `!` in them again.
+>
+> Also, arguments cannot contain line breaks, and the escaping requires the `cmd.exe` defaults: command extensions enabled and delayed expansion disabled.
+
 ## Alternatives
 
 `nano-spawn`'s main goal is to be small, yet useful. Nonetheless, depending on your use case, there are other ways to run subprocesses in Node.js.
