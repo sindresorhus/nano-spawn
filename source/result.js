@@ -7,7 +7,7 @@ export const getResult = async (nodeChildProcess, options, context) => {
 		instance.stdin.end(options.input);
 	}
 
-	const onClose = once(instance, 'close');
+	const onClose = waitForClose(instance);
 
 	try {
 		await Promise.race([
@@ -21,6 +21,20 @@ export const getResult = async (nodeChildProcess, options, context) => {
 		// for the `close` event. Otherwise a broken stream on a long-running subprocess would swallow
 		// the error forever. The subprocess can still be terminated using `nodeChildProcess`.
 		throw getResultError(error, instance, context, options);
+	}
+};
+
+// The `error` event of the subprocess rejects right away. The exception is cancellation: it sends a signal, but the subprocess may still need time to exit and flush its output, so it is reported once the subprocess has closed.
+const waitForClose = async instance => {
+	try {
+		await once(instance, 'close');
+	} catch (error) {
+		if (error.code !== 'ABORT_ERR') {
+			throw error;
+		}
+
+		await once(instance, 'close');
+		throw error;
 	}
 };
 

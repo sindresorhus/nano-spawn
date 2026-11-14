@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {once} from 'node:events';
 import spawn, {SubprocessError} from '../source/index.js';
 import {
 	isWindows,
@@ -92,6 +93,64 @@ if (isLinux) {
 		assertAbortError(error, cause);
 	});
 }
+
+if (!isWindows) {
+	test('Cancellation waits for the subprocess to close and collects its final output', {timeout: 1e4}, async () => {
+		const controller = new AbortController();
+		const cause = new Error(testString);
+		const subprocess = spawn(...nodeEval(`process.on('SIGTERM', () => {
+			setTimeout(() => {
+				console.error('cleanup complete');
+				process.exit();
+			}, 100);
+		});
+		setInterval(() => {}, 1000);
+		console.log('ready');`), {signal: controller.signal});
+		const nodeChildProcess = await subprocess.nodeChildProcess;
+		let hasClosed = false;
+		const closed = new Promise(resolve => {
+			nodeChildProcess.once('close', () => {
+				hasClosed = true;
+				resolve();
+			});
+		});
+
+		try {
+			// Wait until the child has installed its signal handler.
+			await once(nodeChildProcess.stdout, 'data');
+			controller.abort(cause);
+			const error = await throwsAsync(subprocess);
+			assert.equal(hasClosed, true);
+			assert.ok(error instanceof SubprocessError);
+			assert.equal(error.isCanceled, true);
+			assert.equal(error.cause.code, 'ABORT_ERR');
+			assert.equal(error.cause.cause, cause);
+			assert.equal(error.stdout, 'ready');
+			assert.equal(error.stderr, 'cleanup complete');
+			assert.equal(error.output, 'ready\ncleanup complete');
+		} finally {
+			nodeChildProcess.kill('SIGKILL');
+			await closed;
+		}
+	});
+}
+
+test('Child process errors are reported while the subprocess is still running', {timeout: 1e4}, async () => {
+	const subprocess = spawn(...nodeHanging);
+	const nodeChildProcess = await subprocess.nodeChildProcess;
+	const closed = new Promise(resolve => {
+		nodeChildProcess.once('close', resolve);
+	});
+	const cause = new Error(testString);
+
+	try {
+		nodeChildProcess.emit('error', cause);
+		assertErrorEvent(await throwsAsync(subprocess), cause, nodeHangingCommand);
+	} finally {
+		nodeChildProcess.kill();
+		await closed;
+	}
+});
 
 test('result.stdout is set', async () => {
 	const {stdout, stderr, output} = await spawn(...nodePrintStdout);

@@ -137,7 +137,7 @@ export const assertEarlyError = ({name, exitCode, signalName, isCanceled, comman
 export const assertAbortError = ({name, exitCode, signalName, isCanceled, command, stderr, message, cause, durationMs}, expectedCause, expectedCommand = nodeHangingCommand) => {
 	assertSubprocessErrorName(name);
 	assert.equal(exitCode, undefined);
-	assert.equal(signalName, undefined);
+	assert.equal(signalName, 'SIGTERM');
 	assert.ok(isCanceled);
 	assert.equal(command, expectedCommand);
 	assert.equal(message, `Command failed: ${expectedCommand}`);

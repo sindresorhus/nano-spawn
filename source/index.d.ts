@@ -7,6 +7,8 @@ type StdinOption = StdioOption | {readonly string?: string};
 Options passed to `nano-spawn`.
 
 All [`child_process.spawn()` options](https://nodejs.org/api/child_process.html#child_processspawncommand-args-options) can be passed.
+
+Cancellation with `options.signal` waits for the subprocess to exit and its standard streams to close before rejecting. Stream errors still reject immediately. If the subprocess ignores the termination signal, the promise stays pending.
 */
 export type Options = Omit<SpawnOptions, 'env' | 'stdio'> & Readonly<Partial<{
 	/**
@@ -154,7 +156,7 @@ export class SubprocessError extends Error implements Result {
 	- The current process.
 	- Another process. This case is [not supported on Windows](https://nodejs.org/api/process.html#signal-events).
 
-	If a signal terminated the subprocess, this property is defined and included in the [error message](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/message). Otherwise it is `undefined`.
+	If a signal terminated the subprocess, this property is defined and, except for cancellation errors, included in the [error message](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/message). Otherwise it is `undefined`.
 	*/
 	signalName?: string;
 
