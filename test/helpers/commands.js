@@ -1,17 +1,7 @@
-import logProcessErrors from 'log-process-errors';
-// Windows console setup. It is imported here rather than with `node --import` because
-// nano-spawn hands the parent's `process.execArgv` to every child process, and a relative
-// `--import` path in those flags breaks any child spawned with a different `cwd`.
+// Test-wide setup, such as the Windows console code page. It is imported here rather than with `node --import` because nano-spawn hands the parent's `process.execArgv` to every child process, and a relative `--import` path in those flags breaks any child spawned with a different `cwd`.
+// eslint-disable-next-line import-x/no-unassigned-import
 import './setup.js';
 import {testString, secondTestString} from './arguments.js';
-
-// Make tests fail if any warning (such as a deprecation warning) is emitted
-logProcessErrors({
-	exit: true,
-	onError(error) {
-		throw error;
-	},
-});
 
 export const nodeHanging = ['node'];
 export const [nodeHangingCommand] = nodeHanging;

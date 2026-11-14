@@ -8,7 +8,8 @@ import {lineIterator, combineAsyncIterators} from './iterable.js';
 export {SubprocessError} from './result.js';
 
 export default function spawn(file, second, third, previous) {
-	const [commandArguments = [], options = {}] = Array.isArray(second) ? [second, third] : [[], second];
+	// Capture caller-owned arguments before asynchronous process startup.
+	const [commandArguments, options = {}] = Array.isArray(second) ? [[...second], third] : [[], second];
 	const context = getContext([file, ...commandArguments]);
 	const spawnOptions = getOptions(options);
 	const nodeChildProcess = spawnSubprocess(file, commandArguments, spawnOptions, context);
@@ -16,13 +17,13 @@ export default function spawn(file, second, third, previous) {
 	Object.assign(subprocess, {nodeChildProcess});
 	subprocess = previous ? handlePipe([previous, subprocess], context, spawnOptions) : subprocess;
 
-	const stdout = lineIterator(subprocess, context, 'stdout', 0);
-	const stderr = lineIterator(subprocess, context, 'stderr', 1);
+	const stdout = lineIterator(subprocess, context, 'stdout');
+	const stderr = lineIterator(subprocess, context, 'stderr');
 	return Object.assign(subprocess, {
 		nodeChildProcess,
 		stdout,
 		stderr,
-		[Symbol.asyncIterator]: () => combineAsyncIterators(context, stdout, stderr),
-		pipe: (file, second, third) => spawn(file, second, third, subprocess),
+		[Symbol.asyncIterator]: () => combineAsyncIterators(stdout, stderr),
+		pipe: (nextFile, nextSecond, nextThird) => spawn(nextFile, nextSecond, nextThird, subprocess),
 	});
 }

@@ -5,7 +5,7 @@ import process from 'node:process';
 // When setting `shell: true` under-the-hood, we must manually escape the file and arguments.
 // This ensures arguments are properly split, and prevents command injection.
 export const applyForceShell = async (file, commandArguments, options) => await shouldForceShell(file, options)
-	? [escapeFile(file), commandArguments.map(argument => escapeArgument(argument)), {...options, shell: true}]
+	? [escapeFile(file), commandArguments.map(argument => escapeArgument(argument)), {__proto__: null, ...options, shell: true}]
 	: [file, commandArguments, options];
 
 // On Windows, running most executable files (except *.exe and *.com) requires using a shell.
@@ -13,7 +13,7 @@ export const applyForceShell = async (file, commandArguments, options) => await 
 // We detect this situation and automatically:
 //  - Set the `shell: true` option
 //  - Escape shell-specific characters
-const shouldForceShell = async (file, {shell, cwd, env = process.env}) => process.platform === 'win32'
+const shouldForceShell = async (file, {shell, cwd, env}) => process.platform === 'win32'
 	&& !shell
 	&& !(await isExe(file, cwd, env));
 
@@ -25,30 +25,26 @@ const isExe = (file, cwd, {Path = '', PATH = Path}) =>
 	// If the *.exe or *.com file extension was not omitted.
 	// Windows common file systems are case-insensitive.
 	exeExtensions.some(extension => file.toLowerCase().endsWith(extension))
-	|| mIsExe(file, cwd, PATH);
+	|| hasNativeExecutable(file, cwd, PATH);
 
-// Memoize the `mIsExe` and `fs.access`, for performance
-const EXE_MEMO = {};
-// eslint-disable-next-line no-return-assign
-const memoize = function_ => (...arguments_) =>
-	// Use returned assignment to keep code small
-	EXE_MEMO[arguments_.join('\0')] ??= function_(...arguments_);
-
-const access = memoize(fs.access);
-const mIsExe = memoize(async (file, cwd, PATH) => {
+// Resolve executable files from the current filesystem instead of memoizing lookup results.
+// The `file`, `cwd` and `PATH` can stay the same while a tool is installed or removed, so cached `fs.access` results can choose the wrong shell.
+// Keeping lookup state local avoids cache growth and eviction state in long-running processes.
+const hasNativeExecutable = async (file, cwd, PATH) => {
 	const parts = PATH
 		// `PATH` is ;-separated on Windows
 		.split(path.delimiter)
 		// `PATH` allows leading/trailing ; on Windows
 		.filter(Boolean)
 		// `PATH` parts can be double quoted on Windows
-		.map(part => part.replace(/^"(.*)"$/, '$1'));
+		.map(part => part.replace(/^"(?<quoted>.*)"$/v, '$<quoted>'));
 
 	// For performance, parallelize and stop iteration as soon as an *.exe or *.com file is found
+	// Relative PATH entries use the subprocess's cwd, like the executable lookup in Node.js.
 	try {
 		await Promise.any(
 			[cwd, ...parts].flatMap(part => exeExtensions
-				.map(extension => access(`${path.resolve(part, file)}${extension}`)),
+				.map(extension => fs.access(`${path.resolve(cwd, part, file)}${extension}`)),
 			),
 		);
 	} catch {
@@ -56,7 +52,7 @@ const mIsExe = memoize(async (file, cwd, PATH) => {
 	}
 
 	return true;
-});
+};
 
 // Other file extensions require using a shell
 const exeExtensions = ['.exe', '.com'];
@@ -86,4 +82,4 @@ const shouldQuoteArgument = argument => argument === ''
 	|| /[\p{Control}[^\w#$*+\-.\/:?@\\\u{80}-\u{10FFFF}]]/v.test(argument);
 
 // `cmd.exe` escaping for the file.
-const escapeFile = file => file.replaceAll(/([()\][%!^"`<>&|;, *?])/g, '^$1');
+const escapeFile = file => file.replaceAll(/(?<special>[ !"%&\(\)*,;<>?\[\]^`\|])/gv, '^$<special>');

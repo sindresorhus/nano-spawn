@@ -2,26 +2,17 @@ import {spawnSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import {nonExistentCommand, nodeHangingCommand, nodeEvalCommandStart} from './commands.js';
 
-export const assertSubprocessErrorName = (name) => {
+export const assertSubprocessErrorName = name => {
 	assert.equal(name, 'SubprocessError');
 };
 
-// `assert.rejects()` resolves with `undefined`, but these tests assert on the
-// rejection itself, so this returns the error like AVA's `t.throwsAsync()` did.
+// `assert.rejects()` resolves with `undefined`, but these tests assert on the rejection itself, so this returns the error like AVA's `t.throwsAsync()` did.
 export const throwsAsync = async (promise, expectation) => {
-	let rejection;
 	let error;
-
-	try {
-		await promise;
-	} catch (error_) {
-		error = error_;
-		rejection = true;
-	}
-
-	if (!rejection) {
-		assert.fail('Expected the promise to reject, but it resolved');
-	}
+	await assert.rejects(promise, rejection => {
+		error = rejection;
+		return true;
+	});
 
 	if (expectation) {
 		assert.throws(() => {
@@ -32,7 +23,7 @@ export const throwsAsync = async (promise, expectation) => {
 	return error;
 };
 
-export const assertDurationMs = (durationMs) => {
+export const assertDurationMs = durationMs => {
 	assert.ok(Number.isFinite(durationMs));
 	assert.ok(durationMs >= 0);
 };
@@ -57,10 +48,12 @@ let nonExistentCommandOutput;
 const toNonExistentCommandOutput = command => {
 	if (typeof nonExistentCommandOutput !== 'string') {
 		const {stderr} = spawnSync(nonExistentCommand, {shell: true, encoding: 'utf8'});
-		nonExistentCommandOutput = stderr.replace(/\r?\n$/, '');
+		nonExistentCommandOutput = stderr.replace(/\r?\n$/v, '');
 	}
 
-	return nonExistentCommandOutput.replaceAll(nonExistentCommand, command.split(/[ /]/)[0]);
+	// The replacement is a test command name, which never contains a `$` substitution pattern
+	// eslint-disable-next-line unicorn/no-unsafe-string-replacement
+	return nonExistentCommandOutput.replaceAll(nonExistentCommand, command.split(/[ \/]/v, 1)[0]);
 };
 
 export const assertWindowsNonExistent = ({name, exitCode, signalName, isCanceled, command, message, stderr, cause, durationMs}, expectedCommand = nonExistentCommand) => {
@@ -138,7 +131,7 @@ export const assertAbortError = ({name, exitCode, signalName, isCanceled, comman
 	assertSubprocessErrorName(name);
 	assert.equal(exitCode, undefined);
 	assert.equal(signalName, 'SIGTERM');
-	assert.ok(isCanceled);
+	assert.equal(isCanceled, true);
 	assert.equal(command, expectedCommand);
 	assert.equal(message, `Command failed: ${expectedCommand}`);
 	assert.equal(stderr, '');

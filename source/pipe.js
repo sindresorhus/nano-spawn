@@ -2,19 +2,19 @@ import {pipeline} from 'node:stream/promises';
 import {getResultError, SubprocessError} from './result.js';
 
 export const handlePipe = async (subprocesses, context, options) => {
-	// Ensure both subprocesses have exited before resolving, and that we handle errors from both.
+	// Ensure both subprocess promises have settled before resolving, and that we handle errors from both.
 	// If the piping cannot be set up, this rejects right away instead.
 	const [[from, to]] = await Promise.all([Promise.allSettled(subprocesses), pipeStreams(subprocesses, context, options)]);
-	const pipedFrom = from.reason ?? from.value;
+	const pipedFrom = from.status === 'rejected' ? from.reason : from.value;
 
 	// If both subprocesses fail, throw destination error to use a predictable order and avoid race conditions
-	if (to.reason) {
+	if (to.status === 'rejected') {
 		to.reason.pipedFrom = pipedFrom;
 		throw to.reason;
 	}
 
 	// The destination stopping to read ends the source with `SIGPIPE`. The pipeline itself caused that, so the pipeline takes the destination's outcome, as a shell does, and the source's error stays reachable through `pipedFrom`.
-	if (from.reason && from.reason.signalName !== 'SIGPIPE') {
+	if (from.status === 'rejected' && from.reason.signalName !== 'SIGPIPE') {
 		throw from.reason;
 	}
 

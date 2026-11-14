@@ -1,4 +1,3 @@
-import {once, on} from 'node:events';
 import process from 'node:process';
 
 export const getResult = async (nodeChildProcess, options, context) => {
@@ -7,45 +6,54 @@ export const getResult = async (nodeChildProcess, options, context) => {
 		instance.stdin.end(options.input);
 	}
 
-	const onClose = waitForClose(instance);
-
 	try {
-		await Promise.race([
-			onClose,
-			...instance.stdio.filter(Boolean).map(stream => onStreamError(stream)),
-		]);
+		await waitForCompletion(instance);
 		checkFailure(context, getErrorOutput(instance));
 		return getOutputs(context);
 	} catch (error) {
-		// A stdio stream error is a failure in itself, so it is reported right away instead of waiting
-		// for the `close` event. Otherwise a broken stream on a long-running subprocess would swallow
-		// the error forever. The subprocess can still be terminated using `nodeChildProcess`.
+		// A stdio stream error is a failure in itself, so it is reported right away instead of waiting for the `close` event. Otherwise a broken stream on a long-running subprocess would swallow the error forever. The subprocess can still be terminated using `nodeChildProcess`. Cancellation is not reported right away: it waits for the subprocess to close, so its final output is included.
 		throw getResultError(error, instance, context, options);
 	}
 };
 
-// The `error` event of the subprocess rejects right away. The exception is cancellation: it sends a signal, but the subprocess may still need time to exit and flush its output, so it is reported once the subprocess has closed.
-const waitForClose = async instance => {
-	try {
-		await once(instance, 'close');
-	} catch (error) {
-		if (error.code !== 'ABORT_ERR') {
-			throw error;
+const waitForCompletion = instance => new Promise((resolve, reject) => {
+	let cancellationError;
+	const onInstanceError = error => {
+		if (error.code === 'ABORT_ERR') {
+			// Cancellation sends a signal, but the subprocess may still need time to exit and flush its output.
+			cancellationError = error;
+		} else {
+			reject(error);
 		}
+	};
 
-		await once(instance, 'close');
-		throw error;
-	}
-};
-
-const onStreamError = async stream => {
-	for await (const [error] of on(stream, 'error')) {
+	const streams = instance.stdio.filter(Boolean);
+	const onStreamError = error => {
 		// Ignore errors that are due to closing errors when the subprocesses exit normally, or due to piping
 		if (!['ERR_STREAM_PREMATURE_CLOSE', 'EPIPE'].includes(error?.code)) {
-			throw error;
+			reject(error);
 		}
+	};
+
+	for (const stream of streams) {
+		stream.on('error', onStreamError);
 	}
-};
+
+	instance.on('error', onInstanceError);
+	instance.once('close', () => {
+		// A stream failure rejects right away, but the child may still run. Keep handling errors until it closes, then release all observers.
+		instance.off('error', onInstanceError);
+		for (const stream of streams) {
+			stream.off('error', onStreamError);
+		}
+
+		if (cancellationError === undefined) {
+			resolve();
+		} else {
+			reject(cancellationError);
+		}
+	});
+});
 
 const checkFailure = ({command}, {exitCode, signalName}) => {
 	if (signalName !== undefined) {
@@ -74,8 +82,8 @@ export class SubprocessError extends Error {
 
 const getErrorOutput = ({exitCode, signalCode}) => ({
 	// `exitCode` can be a negative number (`errno`) when the `error` event is emitted on the `instance`
-	...(exitCode < 1 ? {} : {exitCode}),
-	...(signalCode === null ? {} : {signalName: signalCode}),
+	...(!(exitCode < 1) && {exitCode}),
+	...(signalCode !== null && {signalName: signalCode}),
 });
 
 const getOutputs = ({state: {stdout, stderr, output}, command, start}) => ({

@@ -3,6 +3,7 @@
 		"module": "nodenext",
 		"moduleResolution": "nodenext",
 		"target": "ES2022",
+		"types": ["node"],
 		"strict": true
 	},
 	"files": [

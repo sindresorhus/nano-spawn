@@ -156,12 +156,12 @@ export class SubprocessError extends Error implements Result {
 	- The current process.
 	- Another process. This case is [not supported on Windows](https://nodejs.org/api/process.html#signal-events).
 
-	If a signal terminated the subprocess, this property is defined and, except for cancellation errors, included in the [error message](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/message). Otherwise it is `undefined`.
+	If a signal terminated the subprocess, this property is defined. Otherwise it is `undefined`. The signal is included in the [error message](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/message), unless the error has a [`cause`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/cause), for example when the subprocess was canceled while it was running.
 	*/
 	signalName?: string;
 
 	/**
-	Whether the subprocess was canceled using the [`signal` option](https://nodejs.org/api/child_process.html#child-processspawncommand-args-options).
+	Whether the [`signal` option](https://nodejs.org/api/child_process.html#child-processspawncommand-args-options) was aborted when this failure was reported. This does not necessarily mean that cancellation caused the failure.
 	*/
 	isCanceled: boolean;
 }
@@ -171,7 +171,7 @@ Subprocess started by `spawn()`.
 
 A subprocess is a promise that is either resolved with a successful `result` object or rejected with a `subprocessError`.
 
-It is also an iterable, iterating over each `stdout`/`stderr` line, as soon as it is available. The iteration waits for the subprocess to end (even when using [`break`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/break) or [`return`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/return)). It throws if the subprocess fails. This means you do not need to call `await subprocess`.
+It is also an iterable, iterating over each `stdout`/`stderr` line, as soon as it is available. The iteration waits for the subprocess to end (even when using [`break`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/break) or [`return`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/return)). It throws if the subprocess fails. This means you do not need to call `await subprocess`. The only exception is an error in one of its stdio streams: then it throws right away, since the subprocess might keep running. It can be terminated through `nodeChildProcess` if needed. For a piped subprocess, see the completion rules of `subprocess.pipe()`.
 */
 export type Subprocess = Promise<Result> & AsyncIterable<string> & {
 	/**
@@ -184,27 +184,29 @@ export type Subprocess = Promise<Result> & AsyncIterable<string> & {
 	/**
 	Iterates over each `stdout` line, as soon as it is available.
 
-	The iteration waits for the subprocess to end (even when using [`break`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/break) or [`return`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/return)). It throws if the subprocess fails. This means you do not need to call `await subprocess`.
+	The iteration waits for the subprocess to end (even when using [`break`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/break) or [`return`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/return)). It throws if the subprocess fails. This means you do not need to call `await subprocess`. The only exception is an error in one of its stdio streams: then it throws right away, since the subprocess might keep running. It can be terminated through `nodeChildProcess` if needed. For a piped subprocess, see the completion rules of `subprocess.pipe()`.
 	*/
 	stdout: AsyncIterable<string>;
 
 	/**
 	Iterates over each `stderr` line, as soon as it is available.
 
-	The iteration waits for the subprocess to end (even when using [`break`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/break) or [`return`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/return)). It throws if the subprocess fails. This means you do not need to call `await subprocess`.
+	The iteration waits for the subprocess to end (even when using [`break`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/break) or [`return`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/return)). It throws if the subprocess fails. This means you do not need to call `await subprocess`. The only exception is an error in one of its stdio streams: then it throws right away, since the subprocess might keep running. It can be terminated through `nodeChildProcess` if needed. For a piped subprocess, see the completion rules of `subprocess.pipe()`.
 	*/
 	stderr: AsyncIterable<string>;
 
 	/**
 	Similar to the `|` symbol in shells. [Pipe](https://nodejs.org/api/stream.html#readablepipedestination-options) the subprocess's[`stdout`](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)) to a second subprocess's [`stdin`](https://en.wikipedia.org/wiki/Standard_streams#Standard_input_(stdin)).
 
-	This resolves with that second subprocess's result. If either subprocess is rejected, this is rejected with that subprocess's error instead. The only exception is a source terminated by `SIGPIPE`, which the destination stopping to read causes, so the pipeline takes the destination's outcome, like a shell does.
+	This resolves with that second subprocess's result. If either subprocess is rejected, this is rejected with that subprocess's error instead. The only exception is a source terminated by `SIGPIPE`, which the destination stopping to read normally causes. A source which ends with `SIGPIPE` for an unrelated reason is treated the same way, and its error stays reachable through `pipedFrom`. The pipeline takes the destination's outcome, like a shell does. When a source is piped to several destinations, one of them stopping to read also ends the input of the others.
+
+	After piping is set up, a piped subprocess waits for both subprocess promises to settle, including after a stdio error. The source promise returned by `spawn()` still reports its own stdio errors immediately.
 
 	This follows the same syntax as `spawn(file, arguments?, options?)`. It can be done multiple times in a row.
 
 	@param file - The program/script to execute
 	@param arguments - Arguments to pass to `file` on execution.
-	@param options
+	@param options - Options for the subprocess.
 	@returns `Subprocess`
 
 	@example
@@ -228,7 +230,7 @@ If `file` is `'node'`, the current Node.js version and [flags](https://nodejs.or
 
 @param file - The program/script to execute
 @param arguments - Arguments to pass to `file` on execution.
-@param options
+@param options - Options for the subprocess.
 @returns `Subprocess`
 
 @example <caption>Run commands</caption>
@@ -256,3 +258,5 @@ for await (const line of spawn('ls')) {
 */
 export default function spawn(file: string, arguments?: readonly string[], options?: Options): Subprocess;
 export default function spawn(file: string, options?: Options): Subprocess;
+
+export {}; // eslint-disable-line unicorn/require-module-specifiers -- It stops the implicit export of the declarations without `export`.

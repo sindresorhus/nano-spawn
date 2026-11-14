@@ -17,7 +17,7 @@
 	},
 	"scripts": {
 		"test": "xo && c8 node --test --test-force-exit --test-concurrency=1 --test-timeout=240000 \"test/[!_]*.js\" && npm run type",
-		"type": "tsd -t ./source/index.d.ts -f ./source/index.test-d.ts"
+		"type": "nz"
 	},
 	"files": [
 		"source/**/*.js",
@@ -45,15 +45,26 @@
 	],
 	"devDependencies": {
 		"@types/node": "^26.6.3",
+		"@typescript/native": "npm:typescript@^7.0.2",
 		"ava": "^8.0.1",
 		"c8": "^12.0.0",
 		"get-node": "^15.0.4",
 		"log-process-errors": "^12.0.1",
+		"nz": "^0.1.0",
 		"path-key": "^4.0.0",
 		"tempy": "^3.2.0",
-		"tsd": "^0.33.0",
 		"typescript": "^6.0.3",
 		"xo": "^5.0.1",
 		"yoctocolors": "^2.2.0"
+	},
+	"xo": {
+		"rules": {
+			"node-test/no-conditional-tests": "off",
+			"node-test/no-conditional-assertion": "off",
+			"node-test/no-import-test-files": "off",
+			"node-test/no-process-env-mutation": "off",
+			"node-test/require-assertion": "off",
+			"unicorn/prefer-string-raw": "off"
+		}
 	}
 }

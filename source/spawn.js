@@ -4,10 +4,7 @@ import process from 'node:process';
 import {applyForceShell} from './windows.js';
 import {getResultError} from './result.js';
 
-// Node accepts `--inspect-port 9229` with the value as a separate argument, and dropping only the flag
-// left the value in the arguments, where the child read it as the path of a script to run. Only these
-// two take a separate value; `--inspect` and `--inspect-brk` do not, `--inspect-port=8091` is one
-// token to begin with, and `http` is a value of `--inspect-publish-uid` rather than a flag of its own.
+// Node accepts `--inspect-port 9229` with the value as a separate argument, and dropping only the flag left the value in the arguments, where the child read it as the path of a script to run. Only these two take a separate value; `--inspect` and `--inspect-brk` do not, `--inspect-port=8091` is one token to begin with, and `http` is a value of `--inspect-publish-uid` rather than a flag of its own.
 const inspectFlagsWithValue = new Set(['--inspect-port', '--inspect-publish-uid']);
 
 const withoutInspectFlags = arguments_ => {
@@ -26,8 +23,7 @@ const withoutInspectFlags = arguments_ => {
 	return result;
 };
 
-// `node.exe` is only the name of the `node` binary on Windows. Elsewhere it is an ordinary file,
-// which must not be replaced, since `result.command` would then report a command that never ran.
+// `node.exe` is only the name of the `node` binary on Windows, where binary names are also matched case-insensitively. Elsewhere it is an ordinary file, which must not be replaced, since `result.command` would then report a command that never ran.
 const NODE_BINARIES = process.platform === 'win32' ? ['node', 'node.exe'] : ['node'];
 
 export const spawnSubprocess = async (file, commandArguments, options, context) => {
@@ -36,7 +32,7 @@ export const spawnSubprocess = async (file, commandArguments, options, context) 
 		// Not applied with file paths to `.../node` since those indicate a clear intent to use a specific Node version.
 		// This also provides a way to opting out, e.g. using `process.execPath` instead of `node` to discard current CLI flags.
 		// Does not work with shebangs, but those don't work cross-platform anyway.
-		if (NODE_BINARIES.includes(file.toLowerCase())) {
+		if (NODE_BINARIES.includes(process.platform === 'win32' ? file.toLowerCase() : file)) {
 			file = process.execPath;
 			commandArguments = [...withoutInspectFlags(process.execArgv), ...commandArguments];
 		}
@@ -47,7 +43,7 @@ export const spawnSubprocess = async (file, commandArguments, options, context) 
 		bufferOutput(instance.stdout, context, 'stdout');
 		bufferOutput(instance.stderr, context, 'stderr');
 
-		// The `error` event is caught by `once(instance, 'spawn')` and `once(instance, 'close')`.
+		// The `error` event is caught while waiting for `spawn` and subprocess completion.
 		// But it creates an uncaught exception if it happens exactly one tick after 'spawn'.
 		// This prevents that.
 		instance.once('error', () => {});
@@ -72,14 +68,19 @@ const concatenateShell = (file, commandArguments, options) => options.shell && c
 	: [file, commandArguments, options];
 
 const bufferOutput = (stream, {state}, streamName) => {
-	if (stream) {
-		stream.setEncoding('utf8');
-		if (!state.isIterating[streamName]) {
-			state.isIterating[streamName] = false;
-			stream.on('data', chunk => {
-				state[streamName] += chunk;
-				state.output += chunk;
-			});
-		}
+	if (!stream) {
+		return;
 	}
+
+	stream.setEncoding('utf8');
+	// `true` means the stream is being iterated, so buffering it would defeat the point of iterating
+	if (state.isIterating[streamName] === true) {
+		return;
+	}
+
+	state.isIterating[streamName] = false;
+	stream.on('data', chunk => {
+		state[streamName] += chunk;
+		state.output += chunk;
+	});
 };

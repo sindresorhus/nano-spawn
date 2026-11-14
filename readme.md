@@ -126,7 +126,7 @@ Subprocess started by [`spawn()`](#spawnfile-arguments-options-default-export).
 _Returns_: [`Result`](#result)\
 _Throws_: [`SubprocessError`](#subprocesserror)
 
-A subprocess is a promise that is either resolved with a successful [`result` object](#result) or rejected with a [`subprocessError`](#error).
+A subprocess is a promise that is either resolved with a successful [`result` object](#result) or rejected with a [`subprocessError`](#subprocesserror).
 
 ##### subprocess.stdout
 
@@ -135,7 +135,7 @@ _Throws_: [`SubprocessError`](#subprocesserror)
 
 Iterates over each [`stdout`](#resultstdout) line, as soon as it is available.
 
-The iteration waits for the subprocess to end (even when using [`break`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/break) or [`return`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/return)). It throws if the subprocess [fails](#subprocesserror). This means you do not need to call [`await subprocess`](#await-subprocess).
+The iteration waits for the subprocess to end (even when using [`break`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/break) or [`return`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/return)). It throws if the subprocess [fails](#subprocesserror). This means you do not need to call [`await subprocess`](#await-subprocess). The only exception is an error in one of its stdio streams: then it throws right away, since the subprocess might keep running. It can be terminated through [`nodeChildProcess`](#await-subprocessnodechildprocess) if needed. For a piped subprocess, see the completion rules of [`subprocess.pipe()`](#subprocesspipefile-arguments-options).
 
 ##### subprocess.stderr
 
@@ -144,7 +144,7 @@ _Throws_: [`SubprocessError`](#subprocesserror)
 
 Same as [`subprocess.stdout`](#subprocessstdout) but for [`stderr`](#resultstderr) instead.
 
-##### subprocess[Symbol.asyncIterator]\()
+##### subprocess\[Symbol.asyncIterator\]()
 
 _Returns_: `AsyncIterable<string>`\
 _Throws_: [`SubprocessError`](#subprocesserror)
@@ -160,7 +160,9 @@ _Returns_: [`Subprocess`](#subprocess)
 
 Similar to the `|` symbol in shells. [Pipe](https://nodejs.org/api/stream.html#readablepipedestination-options) the subprocess's[`stdout`](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)) to a second subprocess's [`stdin`](https://en.wikipedia.org/wiki/Standard_streams#Standard_input_(stdin)).
 
-This resolves with that second subprocess's [result](#result). If either subprocess is rejected, this is rejected with that subprocess's [error](#subprocesserror) instead. The only exception is a source terminated by `SIGPIPE`, which the destination stopping to read causes, so the pipeline takes the destination's outcome, like a shell does.
+This resolves with that second subprocess's [result](#result). If either subprocess is rejected, this is rejected with that subprocess's [error](#subprocesserror) instead. The only exception is a source terminated by `SIGPIPE`, which the destination stopping to read normally causes. A source which ends with `SIGPIPE` for an unrelated reason is treated the same way, and its error stays reachable through `pipedFrom`. The pipeline takes the destination's outcome, like a shell does. When a source is piped to several destinations, one of them stopping to read also ends the input of the others.
+
+After piping is set up, a piped subprocess waits for both subprocess promises to settle, including after a stdio error. The source promise returned by `spawn()` still reports its own stdio errors immediately.
 
 This follows the same syntax as [`spawn(file, arguments?, options?)`](#spawnfile-arguments-options-default-export). It can be done multiple times in a row.
 
@@ -248,13 +250,13 @@ The name of the [signal](https://en.wikipedia.org/wiki/Signal_(IPC)) (like [`SIG
 - The current process.
 - Another process. This case is [not supported on Windows](https://nodejs.org/api/process.html#signal-events).
 
-If a signal terminated the subprocess, this property is defined and, except for cancellation errors, included in the [error message](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/message). Otherwise it is `undefined`.
+If a signal terminated the subprocess, this property is defined. Otherwise it is `undefined`. The signal is included in the [error message](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/message), unless the error has a [`cause`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/cause), for example when the subprocess was canceled while it was running.
 
 ##### subprocessError.isCanceled
 
 _Type_: `boolean`
 
-Whether the subprocess was canceled using the [`signal` option](https://nodejs.org/api/child_process.html#child-processspawncommand-args-options).
+Whether the [`signal` option](https://nodejs.org/api/child_process.html#child-processspawncommand-args-options) was aborted when this failure was reported. This does not necessarily mean that cancellation caused the failure.
 
 ## Windows support
 
