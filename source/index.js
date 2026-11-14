@@ -13,7 +13,8 @@ export default function spawn(file, second, third, previous) {
 	const context = getContext([file, ...commandArguments]);
 	const spawnOptions = getOptions(options);
 	const nodeChildProcess = spawnSubprocess(file, commandArguments, spawnOptions, context);
-	let subprocess = getResult(nodeChildProcess, spawnOptions, context);
+	// The destination's input comes from the source, so its own `input` must not be written: the promise is rejected by `.pipe()` instead.
+	let subprocess = getResult(nodeChildProcess, previous === undefined ? spawnOptions : {...spawnOptions, input: undefined}, context);
 	Object.assign(subprocess, {nodeChildProcess});
 	subprocess = previous ? handlePipe([previous, subprocess], context, spawnOptions) : subprocess;
 

@@ -19,7 +19,9 @@ import {
 	getArgumentName,
 } from './helpers/arguments.js';
 import {
+	assertDurationMs,
 	assertNonExistent,
+	assertSubprocessErrorName,
 	assertUnixNotFound,
 	assertWindowsNonExistent,
 	throwsAsync,
@@ -168,6 +170,14 @@ test('Can pass options.stdin', testStdOption('stdin'));
 test('Can pass options.stdout', testStdOption('stdout'));
 test('Can pass options.stderr', testStdOption('stderr'));
 
+test('Can pass options.stdin "ipc"', async () => {
+	const subprocess = spawn(...nodePrintStdout, {stdin: 'ipc'});
+	const {stdin} = await subprocess.nodeChildProcess;
+	assert.equal(stdin, null);
+	const {stdout} = await subprocess;
+	assert.equal(stdout, testString);
+});
+
 // The default is a pipe, so the stream must be a real one, not merely present
 const testStdOptionDefault = optionName => async () => {
 	const subprocess = spawn(...nodePrintStdout);
@@ -223,10 +233,8 @@ const testInput = (options, expectedStdout) => async () => {
 	assert.equal(stdout, expectedStdout);
 };
 
-test('options.stdin can be {string: string}', testInput({stdin: {string: testString}}, testString));
-test('options.stdio[0] can be {string: string}', testInput({stdio: [{string: testString}, 'pipe', 'pipe']}, testString));
-test('options.stdin can be {string: ""}', testInput({stdin: {string: ''}}, ''));
-test('options.stdio[0] can be {string: ""}', testInput({stdio: [{string: ''}, 'pipe', 'pipe']}, ''));
+test('options.input can be a string', testInput({input: testString}, testString));
+test('options.input can be an empty string', testInput({input: ''}, ''));
 
 const testLocalBinaryExec = cwd => async () => {
 	const {stdout} = await spawn(...localBinary, {preferLocal: true, cwd});
@@ -270,7 +278,13 @@ test('options.preferLocal true runs a binary which only exists locally', async (
 test('options.preferLocal true uses options.env when empty', async () => {
 	const error = await throwsAsync(spawn(...localBinary, {preferLocal: true, env: {PATH: undefined, Path: undefined}}));
 	if (isWindows) {
-		assertNonExistent(error, 'cmd.exe', localBinaryCommand);
+		// On Windows, the binary runs through `cmd.exe`, which Windows finds regardless of `PATH`. The failure is the batch file shim not finding `node`, reported as an exit code whose exact value depends on the shim.
+		assertSubprocessErrorName(error.name);
+		assert.notStrictEqual(error.exitCode, undefined);
+		assert.equal(error.isCanceled, false);
+		assert.equal(error.command, localBinaryCommand);
+		assert.equal(error.cause, undefined);
+		assertDurationMs(error.durationMs);
 	} else {
 		assertUnixNotFound(error, localBinaryCommand);
 	}
@@ -380,8 +394,51 @@ for (const optionName of ['cwd', 'stdio']) {
 	});
 }
 
-test('options.stdio can be undefined, with options.stdin {string: string}', async () => {
-	const {stdout} = await spawn(...nodePassThrough, {stdio: undefined, stdin: {string: testString}});
+// Any other string would make `node:child_process` report an unclear error about `options.stdio[0]`
+test('options.stdin cannot be an unknown string', () => {
+	assert.throws(() => spawn(...nodePrintStdout, {stdin: 'unknown'}), {
+		name: 'TypeError',
+		message: 'The `stdin` option must be "pipe", "inherit", "ignore", "ipc" or "overlapped", a `Stream`, or a file descriptor. To pass input as a string, use the `input` option instead.',
+	});
+});
+
+test('options.stdin cannot be {string: string}', () => {
+	assert.throws(() => spawn(...nodePrintStdout, {stdin: {string: testString}}), {
+		name: 'TypeError',
+		message: 'The `stdin` option does not accept `{string: ...}` anymore. Use the `input` option instead.',
+	});
+});
+
+test('options.stdio[0] cannot be an unknown string', () => {
+	assert.throws(() => spawn(...nodePrintStdout, {stdio: ['unknown', 'pipe', 'pipe']}), {
+		name: 'TypeError',
+		message: 'The `stdio` option must be "pipe", "inherit", "ignore", "ipc" or "overlapped", a `Stream`, or a file descriptor. To pass input as a string, use the `input` option instead.',
+	});
+});
+
+test('options.stdio[0] cannot be {string: string}', () => {
+	assert.throws(() => spawn(...nodePrintStdout, {stdio: [{string: testString}, 'pipe', 'pipe']}), {
+		name: 'TypeError',
+		message: 'The `stdio` option does not accept `{string: ...}` anymore. Use the `input` option instead.',
+	});
+});
+
+test('options.input cannot be used with options.stdin', () => {
+	assert.throws(() => spawn(...nodePassThrough, {input: testString, stdin: 'pipe'}), {
+		name: 'TypeError',
+		message: 'The `input` option cannot be used with the `stdin` or `stdio` options.',
+	});
+});
+
+test('options.input cannot be used with options.stdio', () => {
+	assert.throws(() => spawn(...nodePassThrough, {input: testString, stdio: ['pipe', 'pipe', 'pipe']}), {
+		name: 'TypeError',
+		message: 'The `input` option cannot be used with the `stdin` or `stdio` options.',
+	});
+});
+
+test('options.stdio can be undefined, with options.input', async () => {
+	const {stdout} = await spawn(...nodePassThrough, {stdio: undefined, input: testString});
 	assert.equal(stdout, testString);
 });
 

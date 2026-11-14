@@ -2,6 +2,7 @@
 // eslint-disable-next-line import-x/no-unassigned-import
 import './setup.js';
 import {testString, secondTestString} from './arguments.js';
+import {isWindows} from './main.js';
 
 export const nodeHanging = ['node'];
 export const [nodeHangingCommand] = nodeHanging;
@@ -62,3 +63,5 @@ export const [localOnlyBinaryCommandStart] = localOnlyBinary;
 export const localBinaryCommand = localBinary.flat().join(' ');
 export const [localBinaryCommandStart] = localBinary;
 export const nonExistentCommand = 'non-existent-command';
+// On Windows, a command without an executable extension runs through `cmd.exe` (see `applyForceShell()` in `source/windows.js`), so it fails with an exit code instead of a spawn error. Appending an executable extension skips the forced shell, so the executable itself fails to spawn on every platform.
+export const nonExistentExecutable = isWindows ? `${nonExistentCommand}.exe` : nonExistentCommand;

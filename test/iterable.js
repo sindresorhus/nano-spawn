@@ -62,10 +62,17 @@ test('subprocess.stderr can be iterated', async () => {
 });
 
 test('subprocess[Symbol.asyncIterator] can be iterated', async () => {
-	const subprocess = spawn(...nodeEval(`console.log("${testString}");
+	// Writes are spaced out: two pipes have no ordering guarantee, so this makes the merged iteration order deterministic
+	const subprocess = spawn('node', ['--input-type=module', '-e', `
+import {setTimeout} from 'node:timers/promises';
+
+console.log("${testString}");
+await setTimeout(50);
 console.log("${secondTestString}");
+await setTimeout(50);
 console.error("${thirdTestString}");
-console.error("${fourthTestString}");`));
+await setTimeout(50);
+console.error("${fourthTestString}");`]);
 
 	const lines = await Array.fromAsync(subprocess);
 	assert.deepEqual(lines, [testString, secondTestString, thirdTestString, fourthTestString]);

@@ -269,11 +269,22 @@ test('Handles subprocess.stdin error while the subprocess is still running', {ti
 test('Handles subprocess.stdout error while the subprocess is still running', {timeout: 1e4}, testStreamErrorWhileRunning('stdout'));
 test('Handles subprocess.stderr error while the subprocess is still running', {timeout: 1e4}, testStreamErrorWhileRunning('stderr'));
 
-// A subprocess which exits without reading its input closes its stdin, so writing the rest of the input fails with `EPIPE`. That is not a failure of the subprocess.
-test('options.stdin string larger than the pipe buffer does not fail a subprocess which does not read it', async () => {
-	const {exitCode, stdout} = await spawn(...nodeEval('0'), {stdin: {string: 'a'.repeat(5e6)}});
+// A subprocess which exits without reading its input closes its stdin, so writing the rest of the input fails with `EPIPE` (`EOF` on Windows). That is not a failure of the subprocess.
+test('options.input string larger than the pipe buffer does not fail a subprocess which does not read it', async () => {
+	const {exitCode, stdout} = await spawn(...nodeEval('0'), {input: 'a'.repeat(5e6)});
 	assert.equal(exitCode, undefined);
 	assert.equal(stdout, '');
+});
+
+// The subprocess is killed while its input is still being written, so the write fails with `EPIPE` (`EOF` on Windows). That error is ignored, so the cancellation is reported.
+test('options.input does not fail a subprocess which is canceled while its input is being written', async () => {
+	const controller = new AbortController();
+	const subprocess = spawn('node', ['-e', 'setTimeout(() => {}, 1e4)'], {input: 'a'.repeat(5e6), signal: controller.signal});
+	await subprocess.nodeChildProcess;
+	controller.abort();
+	const error = await throwsAsync(subprocess);
+	assert.equal(error.isCanceled, true);
+	assert.equal(error.cause.code, 'ABORT_ERR');
 });
 
 const testNewline = (input, expectedOutput) => async () => {
@@ -348,7 +359,7 @@ const failureCases = [
 	['options.stdout not "pipe"', () => spawn(...nodeFailing, {stdout: 'ignore'})],
 	['options.stderr not "pipe"', () => spawn(...nodeFailing, {stderr: 'ignore'})],
 	['options.stdout and options.stderr not "pipe"', () => spawn(...nodeFailing, {stdout: 'ignore', stderr: 'ignore'})],
-	['stdin string', () => spawn('node', ['-e', 'process.stdin.resume(); process.exit(2)'], {stdin: {string: testString}})],
+	['input string', () => spawn('node', ['-e', 'process.stdin.resume(); process.exit(2)'], {input: testString})],
 	['.pipe() invalid stdio', () => spawn(...nodePrintStdout).pipe(...nodePrintStdout, {stdin: 'ignore'})],
 	['.pipe() source failure', () => spawn(...nodeFailing).pipe(...nodePrintStdout)],
 	['.pipe() destination failure', () => spawn(...nodePrintStdout).pipe(...nodeFailing)],

@@ -39,7 +39,7 @@ import {
 	nodePrintSleep,
 	nodePrintSleepFail,
 	nodeHanging,
-	nonExistentCommand,
+	nonExistentExecutable,
 } from './helpers/commands.js';
 
 const testFixtureUrl = new URL('test.txt', FIXTURES_URL);
@@ -259,6 +259,11 @@ test('.pipe() with stdin stream in source', async () => {
 	assert.equal(stdout, testUpperCase);
 });
 
+test('.pipe() with input in source', async () => {
+	const {stdout} = await spawn(...nodePassThrough, {input: testString}).pipe(...nodeToUpperCase);
+	assert.equal(stdout, testUpperCase);
+});
+
 test('.pipe() with stdin stream in destination', async () => {
 	const stream = createReadStream(testFixtureUrl);
 	await once(stream, 'open');
@@ -314,6 +319,49 @@ test('.pipe() rejects with a SubprocessError if the source "stdout" is not a pip
 	() => spawn(...nodePrintStdout, {stdout: 'ignore'}).pipe(...nodeToUpperCase),
 ));
 
+// The destination's input comes from the source, so `input` is a conflict: its stdin is already written to by the source.
+test('.pipe() rejects with a SubprocessError if the destination has an "input"', async () => {
+	const error = await throwsAsync(spawn(...nodePrintStdout).pipe(...nodeToUpperCase, {input: testString}));
+	assert.ok(error instanceof SubprocessError);
+	assertSubprocessErrorName(error.name);
+	assert.equal(error.message, 'The "input" option must not be set on the destination of ".pipe()".');
+	assert.equal(error.pipedFrom, undefined);
+});
+
+// An empty string is still set
+test('.pipe() rejects with a SubprocessError if the destination has an empty "input"', async () => {
+	const error = await throwsAsync(spawn(...nodePrintStdout).pipe(...nodeToUpperCase, {input: ''}));
+	assert.ok(error instanceof SubprocessError);
+	assertSubprocessErrorName(error.name);
+	assert.equal(error.message, 'The "input" option must not be set on the destination of ".pipe()".');
+	assert.equal(error.pipedFrom, undefined);
+});
+
+// The destination's input comes from the source, so it is never written: a rejected setup must not deliver the input to the destination.
+test('.pipe() destination with "input" does not receive the input', async () => {
+	await temporaryWriteTask('', async temporaryPath => {
+		const stream = createWriteStream(temporaryPath);
+		await once(stream, 'open');
+		const destination = spawn(...nodePrintStdout).pipe(...nodePassThrough, {input: testString, stdout: stream});
+		const error = await throwsAsync(destination);
+		assert.equal(error.message, 'The "input" option must not be set on the destination of ".pipe()".');
+		const nodeChildProcess = await destination.nodeChildProcess;
+		if (nodeChildProcess.exitCode === null) {
+			await once(nodeChildProcess, 'exit');
+		}
+
+		assert.equal(await readFile(temporaryPath, 'utf8'), '');
+	});
+});
+
+// `input` together with `stdin`/`stdio` is caught by `spawn()` itself, so it throws right away instead of rejecting
+test('.pipe() destination "input" cannot be combined with "stdin"', () => {
+	assert.throws(() => spawn(...nodePrintStdout).pipe(...nodeToUpperCase, {input: testString, stdin: 'pipe'}), {
+		name: 'TypeError',
+		message: 'The `input` option cannot be used with the `stdin` or `stdio` options.',
+	});
+});
+
 // The message names which subprocess is at fault, so it must not contradict itself. `error.command` is always the destination, even for the `stdout` option, which belongs to the source.
 test('.pipe() "stdout" setup error uses the destination command', async () => {
 	const error = await throwsAsync(spawn(...nodePrintStdout, {stdout: 'ignore'}).pipe(...nodeToUpperCase));
@@ -337,11 +385,11 @@ const testPipeSetupNoWait = destinationArguments => async () => {
 };
 
 test('.pipe() setup error does not wait for the source to exit', testPipeSetupNoWait([...nodeToUpperCase, {stdin: 'ignore'}]));
-test('.pipe() destination spawn error does not wait for the source to exit', testPipeSetupNoWait([nonExistentCommand]));
+test('.pipe() destination spawn error does not wait for the source to exit', testPipeSetupNoWait([nonExistentExecutable]));
 
 // A subprocess which failed to spawn is already a `SubprocessError`: it must be rethrown as is, without being wrapped nor referencing itself through `error.pipedFrom`.
 test('.pipe() does not wrap a source which failed to spawn', async () => {
-	const first = spawn(nonExistentCommand);
+	const first = spawn(nonExistentExecutable);
 	const error = await throwsAsync(first.pipe(...nodeToUpperCase));
 	assert.equal(error, await throwsAsync(first));
 	assert.equal(error.pipedFrom, undefined);
@@ -349,8 +397,8 @@ test('.pipe() does not wrap a source which failed to spawn', async () => {
 
 test('.pipe() does not wrap a destination which failed to spawn', async () => {
 	const first = spawn(...nodePrintStdout);
-	const error = await throwsAsync(first.pipe(nonExistentCommand));
-	assert.equal(error.command, nonExistentCommand);
+	const error = await throwsAsync(first.pipe(nonExistentExecutable));
+	assert.equal(error.command, nonExistentExecutable);
 	assert.equal(error.pipedFrom, undefined);
 });
 

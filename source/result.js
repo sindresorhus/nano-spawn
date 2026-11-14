@@ -29,8 +29,8 @@ const waitForCompletion = instance => new Promise((resolve, reject) => {
 
 	const streams = instance.stdio.filter(Boolean);
 	const onStreamError = error => {
-		// Ignore errors that are due to closing errors when the subprocesses exit normally, or due to piping
-		if (!['ERR_STREAM_PREMATURE_CLOSE', 'EPIPE'].includes(error?.code)) {
+		// Ignore errors that are due to closing errors when the subprocesses exit normally, or due to piping. `EOF` is what Windows reports instead of `EPIPE` when writing to a subprocess which already exited.
+		if (!['ERR_STREAM_PREMATURE_CLOSE', 'EPIPE', 'EOF'].includes(error?.code)) {
 			reject(error);
 		}
 	};

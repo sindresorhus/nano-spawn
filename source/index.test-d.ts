@@ -57,10 +57,12 @@ expectError(await spawn('test', {env: true} as const));
 // eslint-disable-next-line @typescript-eslint/naming-convention
 expectError(await spawn('test', {env: {TEST: true}} as const));
 await spawn('test', {stdin: 'pipe'} as const);
-await spawn('test', {stdin: {string: 'test'} as const} as const);
+expectError(await spawn('test', {stdin: {string: 'test'} as const} as const));
 expectError(await spawn('test', {stdin: {string: true} as const} as const));
 expectError(await spawn('test', {stdin: {other: 'test'} as const} as const));
 expectError(await spawn('test', {stdin: true} as const));
+await spawn('test', {input: 'test'} as const);
+expectError(await spawn('test', {input: true} as const));
 await spawn('test', {stdout: 'pipe'} as const);
 expectError(await spawn('test', {stdout: {string: 'test'} as const} as const));
 expectError(await spawn('test', {stdout: true} as const));
@@ -68,7 +70,7 @@ await spawn('test', {stderr: 'pipe'} as const);
 expectError(await spawn('test', {stderr: {string: 'test'} as const} as const));
 expectError(await spawn('test', {stderr: true} as const));
 await spawn('test', {stdio: ['pipe', 'pipe', 'pipe'] as const} as const);
-await spawn('test', {stdio: [{string: 'test'} as const, 'pipe', 'pipe'] as const} as const);
+expectError(await spawn('test', {stdio: [{string: 'test'} as const, 'pipe', 'pipe'] as const} as const));
 expectError(await spawn('test', {stdio: ['pipe', {string: 'test'} as const, 'pipe'] as const} as const));
 expectError(await spawn('test', {stdio: ['pipe', 'pipe', {string: 'test'} as const] as const} as const));
 expectError(await spawn('test', {stdio: [{string: true} as const, 'pipe', 'pipe'] as const} as const));
@@ -173,6 +175,7 @@ expectError(await spawn('test', {cwd: 1} as const));
 await spawn('test', {env: {}} as const);
 await spawn('test', {preferLocal: true} as const);
 
-// The same options are accepted by `subprocess.pipe()`
+// The same options are accepted by `subprocess.pipe()`, except `input`, which comes from the source
 await spawn('test').pipe('test', ['one'], {shell: true, timeout: 1e3});
-await spawn('test').pipe('test', {stdio: ['pipe', 'pipe', 'pipe']});
+await spawn('test').pipe('test', {stdio: ['pipe', 'pipe', 'pipe']} as const);
+expectError(await spawn('test').pipe('test', {input: 'test'} as const));

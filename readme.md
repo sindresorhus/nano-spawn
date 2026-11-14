@@ -21,7 +21,7 @@ Despite the small size, this is packed with some essential features:
 - Proper handling of [subprocess failures](#subprocesserror) and better error messages.
 - Get [interleaved output](#resultoutput) from stdout and stderr similar to what is printed on the terminal.
 - Strip [unnecessary newlines](#resultstdout).
-- Pass strings as [`stdin` input](#optionsstdin-optionsstdout-optionsstderr) to the subprocess.
+- Pass strings as [input](#optionsinput) to the subprocess.
 - Preserve the current [Node.js version and flags](#spawnfile-arguments-options-default-export).
 - Simpler syntax to set [environment variables](#optionsenv) or [`stdin`/`stdout`/`stderr`](#optionsstdin-optionsstdout-optionsstderr).
 - Compute the command [duration](#resultdurationms).
@@ -104,9 +104,21 @@ _Default_: `false`
 
 Allows executing binaries installed locally with `npm` (or `yarn`, etc.).
 
+##### options.input
+
+_Type_: `string`
+
+Input to write to the subprocess's [standard input](https://en.wikipedia.org/wiki/Standard_streams#Standard_input_(stdin)).
+
+This cannot be set together with the [`stdin`](#optionsstdin-optionsstdout-optionsstderr) or `stdio` options, or on the destination of [`subprocess.pipe()`](#subprocesspipefile-arguments-options). For incremental or binary input, write to the `stdin` of [`subprocess.nodeChildProcess`](#await-subprocessnodechildprocess) instead.
+
+```js
+const result = await spawn('gh', ['auth', 'login', '--with-token'], {input: token});
+```
+
 ##### options.stdin, options.stdout, options.stderr
 
-_Type_: `string | number | Stream | {string: string}`
+_Type_: `string | number | Stream`
 
 Subprocess's standard [input](https://en.wikipedia.org/wiki/Standard_streams#Standard_input_(stdin))/[output](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout))/[error](https://en.wikipedia.org/wiki/Standard_streams#Standard_error_(stderr)).
 
@@ -115,7 +127,8 @@ Subprocess's standard [input](https://en.wikipedia.org/wiki/Standard_streams#Sta
 - `'inherit'`: uses the current process's [input](https://nodejs.org/api/process.html#processstdin)/[output](https://nodejs.org/api/process.html#processstdout). This is useful when running in a terminal.
 - `'ignore'`: discards the input/output.
 - [`Stream`](https://nodejs.org/api/stream.html#stream): redirects the input/output from/to a stream. For example, [`fs.createReadStream()`](https://nodejs.org/api/fs.html#fscreatereadstreampath-options)/[`fs.createWriteStream()`](https://nodejs.org/api/fs.html#fscreatewritestreampath-options) can be used, once the stream's [`open`](https://nodejs.org/api/fs.html#event-open) event has been emitted.
-- `{string: '...'}`: passes a string as input to `stdin`.
+
+To pass input as a string, use the [`input`](#optionsinput) option instead.
 
 #### Subprocess
 

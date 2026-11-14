@@ -1,7 +1,6 @@
 import type {ChildProcess, SpawnOptions} from 'node:child_process';
 
 type StdioOption = Readonly<Exclude<SpawnOptions['stdio'], undefined>[number]>;
-type StdinOption = StdioOption | {readonly string?: string};
 
 /**
 Options passed to `nano-spawn`.
@@ -12,6 +11,15 @@ Cancellation with `options.signal` waits for the subprocess to exit and its stan
 */
 export type Options = Omit<SpawnOptions, 'env' | 'stdio'> & Readonly<Partial<{
 	/**
+	Input to write to the subprocess's standard [input](https://en.wikipedia.org/wiki/Standard_streams#Standard_input_(stdin)).
+
+	This cannot be set together with the `stdin` or `stdio` options, or on the destination of `subprocess.pipe()`. For incremental or binary input, write to the `stdin` of `subprocess.nodeChildProcess` instead.
+
+	@default undefined
+	*/
+	input: string;
+
+	/**
 	Subprocess's standard [input](https://en.wikipedia.org/wiki/Standard_streams#Standard_input_(stdin)).
 
 	[All values supported](https://nodejs.org/api/child_process.html#optionsstdio) by `node:child_process` are available. The most common ones are:
@@ -19,11 +27,12 @@ export type Options = Omit<SpawnOptions, 'env' | 'stdio'> & Readonly<Partial<{
 	- `'inherit'`: uses the current process's [input](https://nodejs.org/api/process.html#processstdin). This is useful when running in a terminal.
 	- `'ignore'`: discards the input/output.
 	- [`Stream`](https://nodejs.org/api/stream.html#stream): redirects the input from/to a stream. For example, [`fs.createReadStream()`](https://nodejs.org/api/fs.html#fscreatereadstreampath-options) can be used, once the stream's [`open`](https://nodejs.org/api/fs.html#event-open) event has been emitted.
-	- `{string: '...'}`: passes a string as input.
+
+	To pass input as a string, use the `input` option instead.
 
 	@default 'pipe'
 	*/
-	stdin: StdinOption;
+	stdin: StdioOption;
 
 	/**
 	Subprocess's standard [output](https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)).
@@ -59,11 +68,12 @@ export type Options = Omit<SpawnOptions, 'env' | 'stdio'> & Readonly<Partial<{
 	- `'inherit'`: uses the current process's [input](https://nodejs.org/api/process.html#processstdin)/[output](https://nodejs.org/api/process.html#processstdout). This is useful when running in a terminal.
 	- `'ignore'`: discards the input/output.
 	- [`Stream`](https://nodejs.org/api/stream.html#stream): redirects the input/output from/to a stream. For example, [`fs.createReadStream()`](https://nodejs.org/api/fs.html#fscreatereadstreampath-options)/[`fs.createWriteStream()`](https://nodejs.org/api/fs.html#fscreatewritestreampath-options) can be used, once the stream's [`open`](https://nodejs.org/api/fs.html#event-open) event has been emitted.
-	- `{string: '...'}`: passes a string as input to `stdin`.
+
+	To pass input as a string, use the `input` option instead.
 
 	@default ['pipe', 'pipe', 'pipe']
 	*/
-	stdio: SpawnOptions['stdio'] | readonly [StdinOption, ...readonly StdioOption[]];
+	stdio: SpawnOptions['stdio'] | readonly [StdioOption, ...readonly StdioOption[]];
 
 	/**
 	Allows executing binaries installed locally with `npm` (or `yarn`, etc.).
@@ -217,8 +227,9 @@ export type Subprocess = Promise<Result> & AsyncIterable<string> & {
 		.pipe('head', ['-n', '2']);
 	```
 	*/
-	pipe(file: string, arguments?: readonly string[], options?: Options): Subprocess;
-	pipe(file: string, options?: Options): Subprocess;
+	// `input` is omitted since the destination's input comes from the source
+	pipe(file: string, arguments?: readonly string[], options?: Omit<Options, 'input'>): Subprocess;
+	pipe(file: string, options?: Omit<Options, 'input'>): Subprocess;
 };
 
 /**

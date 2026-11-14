@@ -23,6 +23,11 @@ export const handlePipe = async (subprocesses, context, options) => {
 
 const pipeStreams = async (subprocesses, context, options) => {
 	try {
+		// The destination's input comes from the source, so writing to it is a conflict
+		if (options.input !== undefined) {
+			throw invalidOptionsError('The "input" option must not be set on the destination of ".pipe()".', context, options);
+		}
+
 		const [{stdout}, {stdin}] = await Promise.all(subprocesses.map(({nodeChildProcess}) => nodeChildProcess));
 		if (stdin === null) {
 			throw invalidOptionsError('The "stdin" option must be "pipe" on the destination of ".pipe()".', context, options);
